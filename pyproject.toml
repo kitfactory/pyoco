@@ -1,0 +1,9 @@
+[project]
+name = "pyoco"
+version = "0.1.0"
+description = "A workflow engine with sugar syntax"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pyyaml>=6.0.3",
+]
