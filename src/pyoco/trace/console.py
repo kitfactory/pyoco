@@ -2,7 +2,14 @@ import time
 from .backend import TraceBackend
 
 class ConsoleTraceBackend(TraceBackend):
-    def __init__(self, style: str = "cute"):
+    def __init__(self, style: str = None):
+        if style is None:
+            import os
+            env_cute = os.environ.get("PYOCO_CUTE", "true").lower()
+            if env_cute in ["0", "false", "no", "off"]:
+                style = "plain"
+            else:
+                style = "cute"
         self.style = style
 
     def on_flow_start(self, flow_name: str):

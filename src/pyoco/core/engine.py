@@ -6,6 +6,17 @@ from ..trace.backend import TraceBackend
 from ..trace.console import ConsoleTraceBackend
 
 class Engine:
+    """
+    The core execution engine for Pyoco flows.
+    
+    Responsible for:
+    - Resolving task dependencies
+    - Managing parallel execution (using ThreadPoolExecutor)
+    - Handling input injection and artifact storage
+    - Delegating logging to the TraceBackend
+    
+    Intentionally keeps scheduling logic simple (no distributed queue, no external DB).
+    """
     def __init__(self, trace_backend: TraceBackend = None):
         self.trace = trace_backend or ConsoleTraceBackend()
 

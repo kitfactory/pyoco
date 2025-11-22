@@ -1,37 +1,41 @@
-# Pyoco 開発ロードマップ
+# 🗺️ Pyoco Roadmap
 
-## フェーズ 1: コアエンジンとデータフロー (重要)
-- [x] **入力注入とセレクタ** (`core/engine.py`)
-    - `$node.A.output`, `$ctx.params`, `$env.*` の解決ロジックを実装する。
-    - `flow.yaml` 内の `inputs` マッピングがタスク引数に正しく適用されることを確認する。
-- [x] **並列実行** (`core/engine.py`)
-    - 順次ループを、独立したノードのスレッドベースの並列実行に置き換える。
-    - `Context` 更新のスレッドセーフ性を確保する。
-- [x] **コンテキストの強化** (`core/context.py`)
-    - `ctx.artifacts` のストレージとファイル保存ロジックを実装する。
-    - セレクタ解決のためのヘルパーメソッドを追加する。
+pyoco is intentionally small. This roadmap describes how it may grow while staying minimal.
 
-## フェーズ 2: 堅牢性とエラーハンドリング
-- [x] **失敗ポリシー** (`core/engine.py`)
-    - `fail=stop|isolate|retry` ロジックを実装する。
-- [x] **リトライとタイムアウト** (`core/engine.py`)
-    - タスクレベルの `retries` と `timeout_sec` を実装する。
-    - リトライには `tenacity` またはカスタムループを使用する。
+## Phase 1: Local, single-process DAG runner (Current)
 
-## フェーズ 3: DSL とディスカバリー
-- [x] **分岐ロジック** (`dsl/syntax.py`, `core/engine.py`)
-    - `|` (OR) 演算子のランタイムサポートを実装する。
-    - エンジン内で条件付き実行パスを処理する。
-- [x] **ディスカバリーの競合解決** (`discovery/loader.py`)
-    - タスク読み込みにおいて「明示的な設定が優先される」ルールを実装する。
-    - Strictモードのチェックを追加する。
-- [x] **Glob モジュール** (`discovery/loader.py`)
-    - 設定内の `glob_modules` のワイルドカード展開を実装する。
+Focus on defining and running small DAGs in a single process.
 
-## フェーズ 4: CLI と開発者体験
-- [x] **CLI `check` コマンド** (`cli/main.py`)
-    - 静的検証（インポート解決、シグネチャ照合、到達可能性）を実装する。
-- [x] **CLI パラメータの上書き** (`cli/main.py`)
-    - コマンドラインフラグ経由でのパラメータ上書き（例: `--param x=1`）を許可する。
-- [x] **Cute モードの強化** (`trace/console.py`)
-    - 仕様に従い、コンソール出力を「hop」アニメーションや「fanout」の詳細で改善する。
+- **Features**:
+    - [x] Task dependencies (`>>`)
+    - [x] Simple retries and timeouts
+    - [x] Cute/Plain trace logs
+    - [x] Artifact management
+- **Non-goals**:
+    - Web UI (Use CLI trace instead)
+
+## Phase 2: Single-machine concurrency & simple queue
+
+Introduce parallel execution and simple queuing within a single machine.
+
+- **Features**:
+    - [x] Parallel execution (ThreadPoolExecutor)
+    - [ ] Worker count configuration
+    - [ ] Simple in-memory or file-based queue for task ordering
+- **Non-goals**:
+    - Multi-node distributed execution (Keep it single-machine)
+
+## Phase 3: Kanban-style server & pluggable backends
+
+Introduce a "Kanban server" to manage small jobs as cards, suitable for slightly larger local operations.
+
+- **Concept**:
+    - Treat small jobs as "cards" on a board.
+    - A lightweight server component manages the state of these cards.
+- **Features**:
+    - [ ] Built-in lightweight server (no external DB required)
+    - [ ] Pluggable backends for queue/state (Redis, RabbitMQ) for those who need it.
+    - [ ] `pyoco worker` command to pull tasks from the queue.
+- **Non-goals**:
+    - Complex enterprise scheduling features (unless via plugins)
+    - Heavy default dependencies (Redis/DB should remain optional)

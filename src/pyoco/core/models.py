@@ -3,6 +3,12 @@ from dataclasses import dataclass, field
 
 @dataclass
 class Task:
+    """
+    Represents a single unit of work in the workflow.
+    
+    Designed to be lightweight and serializable.
+    Contains metadata about the task, its dependencies, and execution policies.
+    """
     func: Callable
     name: str
     dependencies: Set['Task'] = field(default_factory=set)
@@ -34,6 +40,12 @@ class Task:
 
 @dataclass
 class Flow:
+    """
+    Represents a Directed Acyclic Graph (DAG) of tasks.
+    
+    Manages the collection of tasks and their dependencies.
+    Optimized for single-machine execution without complex scheduling overhead.
+    """
     name: str = "main"
     tasks: Set[Task] = field(default_factory=set)
     _tail: Set[Task] = field(default_factory=set)
