@@ -1,0 +1,44 @@
+version: 1
+
+discovery:
+  glob_modules:
+    - "examples/cute_demo/tasks.py"
+
+tasks:
+  gather_ingredients:
+    callable: "examples.cute_demo.tasks:gather_ingredients"
+  chop_vegetables:
+    callable: "examples.cute_demo.tasks:chop_vegetables"
+    inputs:
+      ingredients: "$node.gather_ingredients.output"
+  boil_water:
+    callable: "examples.cute_demo.tasks:boil_water"
+  make_curry:
+    callable: "examples.cute_demo.tasks:make_curry"
+    inputs:
+      veggies: "$node.chop_vegetables.output"
+      water: "$node.boil_water.output"
+  cook_rice:
+    callable: "examples.cute_demo.tasks:cook_rice"
+  serve:
+    callable: "examples.cute_demo.tasks:serve"
+    inputs:
+      curry: "$node.make_curry.output"
+      rice: "$node.cook_rice.output"
+
+flows:
+  curry_party:
+    defaults:
+      spice_level: "hot"
+    graph: |
+      # Ingredients -> Chop
+      # Water -> Boil
+      # (Chop & Boil) -> Curry
+      # Rice (parallel to curry)
+      # (Curry & Rice) -> Serve
+      
+      gather_ingredients >> chop_vegetables
+      
+      (chop_vegetables & boil_water) >> make_curry
+      
+      (make_curry & cook_rice) >> serve

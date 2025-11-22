@@ -18,11 +18,13 @@ def main():
     run_parser.add_argument("--trace", action="store_true", help="Enable tracing")
     run_parser.add_argument("--cute", action="store_true", default=True, help="Use cute trace style")
     run_parser.add_argument("--non-cute", action="store_false", dest="cute", help="Use plain trace style")
-    # Allow overriding params via CLI? Spec doesn't explicitly say, but useful.
+    # Allow overriding params via CLI
+    run_parser.add_argument("--param", action="append", help="Override params (key=value)")
 
     # Check command
     check_parser = subparsers.add_parser("check", help="Verify a workflow")
     check_parser.add_argument("--config", required=True, help="Path to flow.yaml")
+    check_parser.add_argument("--flow", default="main", help="Flow name to check")
 
     # List tasks command
     list_parser = subparsers.add_parser("list-tasks", help="List available tasks")
@@ -58,18 +60,6 @@ def main():
             sys.exit(1)
         
         # Build Flow from graph string
-        # Use eval with tasks in context
-        context = loader.tasks.copy()
-        # We might need to wrap tasks to support DSL operators if they aren't already wrapped
-        # But our TaskLoader returns Task objects.
-        # Our DSL syntax relies on TaskWrapper or Task.__rshift__?
-        # Task.__rshift__ is implemented in Task class? No, in TaskWrapper?
-        # Wait, I put __rshift__ in TaskWrapper in dsl/syntax.py
-        # But models.py Task class does NOT have __rshift__?
-        # I should check models.py.
-        
-        # In models.py I did NOT add __rshift__ to Task.
-        # So I need to wrap tasks in TaskWrapper for the eval to work with DSL.
         from ..dsl.syntax import TaskWrapper
         eval_context = {name: TaskWrapper(task) for name, task in loader.tasks.items()}
         
@@ -80,8 +70,7 @@ def main():
                 flow.add_task(t)
 
             # Evaluate graph to set up dependencies
-            # The graph string is like "A >> (B & C)"
-            eval(flow_conf.graph, {}, eval_context)
+            exec(flow_conf.graph, {}, eval_context)
             
             # Run engine
             backend = ConsoleTraceBackend(style="cute" if args.cute else "plain")
@@ -89,7 +78,11 @@ def main():
             
             # Params
             params = flow_conf.defaults.copy()
-            # TODO: CLI overrides
+            if args.param:
+                for p in args.param:
+                    if "=" in p:
+                        k, v = p.split("=", 1)
+                        params[k] = v # Simple string parsing for now
             
             engine.run(flow, params)
             
@@ -100,9 +93,85 @@ def main():
             sys.exit(1)
 
     elif args.command == "check":
-        print("Check not fully implemented yet.")
-        # TODO: Implement check logic
-        pass
+        print(f"Checking flow '{args.flow}'...")
+        flow_conf = config.flows.get(args.flow)
+        if not flow_conf:
+            print(f"Flow '{args.flow}' not found in config.")
+            sys.exit(1)
+
+        errors = []
+        warnings = []
+
+        # 1. Check imports (already done by loader.load(), but we can check for missing tasks in graph)
+        # 2. Build flow to check graph
+        from ..dsl.syntax import TaskWrapper
+        eval_context = {name: TaskWrapper(task) for name, task in loader.tasks.items()}
+        
+        try:
+            flow = Flow(name=args.flow)
+            for t in loader.tasks.values():
+                flow.add_task(t)
+            
+            eval(flow_conf.graph, {}, eval_context)
+            
+            # 3. Reachability / Orphans
+            # Nodes with no deps and no dependents (except if single node flow)
+            if len(flow.tasks) > 1:
+                for t in flow.tasks:
+                    if not t.dependencies and not t.dependents:
+                        warnings.append(f"Task '{t.name}' is orphaned (no dependencies or dependents).")
+
+            # 4. Cycles
+            # Simple DFS for cycle detection
+            visited = set()
+            path = set()
+            def visit(node):
+                if node in path:
+                    return True # Cycle
+                if node in visited:
+                    return False
+                
+                visited.add(node)
+                path.add(node)
+                for dep in node.dependencies: # Check upstream
+                    if visit(dep):
+                        return True
+                path.remove(node)
+                return False
+            
+            for t in flow.tasks:
+                if visit(t):
+                    errors.append(f"Cycle detected involving task '{t.name}'.")
+                    break
+
+            # 5. Signature Check
+            import inspect
+            for t in flow.tasks:
+                sig = inspect.signature(t.func)
+                for name, param in sig.parameters.items():
+                    if name == 'ctx': continue
+                    # Check if input provided in task config or defaults
+                    # This is hard because inputs are resolved at runtime.
+                    # But we can check if 'inputs' mapping exists for it.
+                    if name not in t.inputs and name not in flow_conf.defaults:
+                        # Warning: might be missing input
+                        warnings.append(f"Task '{t.name}' argument '{name}' might be missing input (not in inputs or defaults).")
+
+        except Exception as e:
+            errors.append(f"Graph evaluation failed: {e}")
+
+        # Report
+        print("\n--- Check Report ---")
+        if not errors and not warnings:
+            print("✅ All checks passed!")
+        else:
+            for w in warnings:
+                print(f"⚠️  {w}")
+            for e in errors:
+                print(f"❌ {e}")
+            
+            if errors:
+                sys.exit(1)
 
 if __name__ == "__main__":
     main()

@@ -21,3 +21,6 @@ class TraceBackend(ABC):
     @abstractmethod
     def on_node_error(self, node_name: str, error: Exception):
         pass
+
+    def on_node_transition(self, source: str, target: str):
+        pass

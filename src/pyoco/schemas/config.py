@@ -4,9 +4,9 @@ import yaml
 
 @dataclass
 class TaskConfig:
-    callable: str
+    callable: Optional[str] = None
     inputs: Dict[str, Any] = field(default_factory=dict)
-    save: List[Dict[str, str]] = field(default_factory=list)
+    outputs: List[str] = field(default_factory=list)
 
 @dataclass
 class FlowConfig:

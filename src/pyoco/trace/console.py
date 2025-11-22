@@ -19,13 +19,13 @@ class ConsoleTraceBackend(TraceBackend):
 
     def on_node_start(self, node_name: str):
         if self.style == "cute":
-            print(f"🐇 start node={node_name}")
+            print(f"🏃 start node={node_name}")
         else:
             print(f"INFO pyoco start node={node_name}")
 
     def on_node_end(self, node_name: str, duration_ms: float):
         if self.style == "cute":
-            print(f"🥕 done node={node_name} ({duration_ms:.2f} ms)")
+            print(f"✅ done node={node_name} ({duration_ms:.2f} ms)")
         else:
             print(f"INFO pyoco end node={node_name} dur_ms={duration_ms:.2f}")
 
@@ -34,3 +34,7 @@ class ConsoleTraceBackend(TraceBackend):
             print(f"💥 error node={node_name} {error}")
         else:
             print(f"ERROR pyoco error node={node_name} {error}")
+
+    def on_node_transition(self, source: str, target: str):
+        if self.style == "cute":
+            print(f"🐇 {source} -> {target}")
