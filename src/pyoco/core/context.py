@@ -1,21 +1,37 @@
 import threading
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from dataclasses import dataclass, field
+from .models import RunContext
 
 @dataclass
 class Context:
+    """
+    Execution context passed to tasks.
+    """
     params: Dict[str, Any] = field(default_factory=dict)
-    env: Dict[str, str] = field(default_factory=dict)
     results: Dict[str, Any] = field(default_factory=dict)
     scratch: Dict[str, Any] = field(default_factory=dict)
     artifacts: Dict[str, Any] = field(default_factory=dict)
-    run_id: Optional[str] = None
-    artifact_dir: str = field(default="./artifacts")
+    env: Dict[str, str] = field(default_factory=dict)
+    artifact_dir: Optional[str] = None
+    
+    # Reference to the parent run context (v0.2.0+)
+    run_context: Optional[RunContext] = None
     
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
+    @property
+    def is_cancelled(self) -> bool:
+        if self.run_context:
+            from .models import RunStatus
+            return self.run_context.status in [RunStatus.CANCELLING, RunStatus.CANCELLED]
+        return False
+
     def __post_init__(self):
         # Ensure artifact directory exists
+        if self.artifact_dir is None:
+            self.artifact_dir = "./artifacts"
+            
         import pathlib
         pathlib.Path(self.artifact_dir).mkdir(parents=True, exist_ok=True)
 

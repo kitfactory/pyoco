@@ -12,11 +12,12 @@ class ConsoleTraceBackend(TraceBackend):
                 style = "cute"
         self.style = style
 
-    def on_flow_start(self, flow_name: str):
+    def on_flow_start(self, flow_name: str, run_id: str = None):
+        rid_str = f" run_id={run_id}" if run_id else ""
         if self.style == "cute":
-            print(f"🐇 pyoco > start flow={flow_name}")
+            print(f"🐇 pyoco > start flow={flow_name}{rid_str}")
         else:
-            print(f"INFO pyoco start flow={flow_name}")
+            print(f"INFO pyoco start flow={flow_name}{rid_str}")
 
     def on_flow_end(self, flow_name: str):
         if self.style == "cute":

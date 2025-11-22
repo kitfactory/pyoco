@@ -1,6 +1,7 @@
 import argparse
 import sys
 import os
+import signal
 from ..schemas.config import PyocoConfig
 from ..discovery.loader import TaskLoader
 from ..core.models import Flow
@@ -83,6 +84,14 @@ def main():
                     if "=" in p:
                         k, v = p.split("=", 1)
                         params[k] = v # Simple string parsing for now
+            
+            # Signal handler for cancellation
+            def signal_handler(sig, frame):
+                print("\n🛑 Ctrl+C detected. Cancelling active runs...")
+                for rid in list(engine.active_runs.keys()):
+                    engine.cancel(rid)
+            
+            signal.signal(signal.SIGINT, signal_handler)
             
             engine.run(flow, params)
             

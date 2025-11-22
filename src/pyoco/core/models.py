@@ -1,5 +1,8 @@
 from typing import Any, Callable, Dict, List, Optional, Set, Union, ForwardRef
 from dataclasses import dataclass, field
+from enum import Enum
+import time
+import uuid
 
 @dataclass
 class Task:
@@ -37,6 +40,31 @@ class Task:
 
     def __repr__(self):
         return f"<Task {self.name}>"
+
+class TaskState(Enum):
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    SUCCEEDED = "SUCCEEDED"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+
+class RunStatus(Enum):
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    CANCELLING = "CANCELLING"
+    CANCELLED = "CANCELLED"
+
+@dataclass
+class RunContext:
+    """
+    Holds the state of a single workflow execution.
+    """
+    run_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    status: RunStatus = RunStatus.RUNNING
+    tasks: Dict[str, TaskState] = field(default_factory=dict)
+    start_time: float = field(default_factory=time.time)
+    end_time: Optional[float] = None
 
 @dataclass
 class Flow:

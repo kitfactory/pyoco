@@ -45,7 +45,7 @@ class TaskLoader:
                 print(f"Warning: {msg} Overwriting.")
         
         # Apply config overlay if exists
-        if name in self.config.tasks:
+        if self.config and name in self.config.tasks:
             conf = self.config.tasks[name]
             if not conf.callable:
                 if conf.inputs:
@@ -123,7 +123,6 @@ class TaskLoader:
                 
             # Create a Task wrapper
             t = Task(func=real_func, name=name)
-            t.inputs = conf.inputs
             t.inputs = conf.inputs
             t.outputs = conf.outputs
             self.tasks[name] = t

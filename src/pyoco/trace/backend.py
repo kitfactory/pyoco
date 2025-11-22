@@ -3,7 +3,7 @@ from typing import Any, Optional
 
 class TraceBackend(ABC):
     @abstractmethod
-    def on_flow_start(self, flow_name: str):
+    def on_flow_start(self, flow_name: str, run_id: str = None):
         pass
 
     @abstractmethod
