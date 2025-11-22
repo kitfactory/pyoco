@@ -7,6 +7,7 @@ from ..discovery.loader import TaskLoader
 from ..core.models import Flow
 from ..core.engine import Engine
 from ..trace.console import ConsoleTraceBackend
+from ..client import Client
 
 def main():
     parser = argparse.ArgumentParser(description="Pyoco Workflow Engine")
@@ -21,6 +22,7 @@ def main():
     run_parser.add_argument("--non-cute", action="store_false", dest="cute", help="Use plain trace style")
     # Allow overriding params via CLI
     run_parser.add_argument("--param", action="append", help="Override params (key=value)")
+    run_parser.add_argument("--server", help="Server URL for remote execution")
 
     # Check command
     check_parser = subparsers.add_parser("check", help="Verify a workflow")
@@ -31,27 +33,109 @@ def main():
     list_parser = subparsers.add_parser("list-tasks", help="List available tasks")
     list_parser.add_argument("--config", required=True, help="Path to flow.yaml")
 
+    # Server command
+    server_parser = subparsers.add_parser("server", help="Manage Kanban Server")
+    server_subparsers = server_parser.add_subparsers(dest="server_command")
+    server_start = server_subparsers.add_parser("start", help="Start the server")
+    server_start.add_argument("--host", default="0.0.0.0", help="Host to bind")
+    server_start.add_argument("--port", type=int, default=8000, help="Port to bind")
+
+    # Worker command
+    worker_parser = subparsers.add_parser("worker", help="Manage Worker")
+    worker_subparsers = worker_parser.add_subparsers(dest="worker_command")
+    worker_start = worker_subparsers.add_parser("start", help="Start a worker")
+    worker_start.add_argument("--server", required=True, help="Server URL")
+    worker_start.add_argument("--config", required=True, help="Path to flow.yaml")
+    worker_start.add_argument("--tags", help="Comma-separated tags")
+
+    # Runs command
+    runs_parser = subparsers.add_parser("runs", help="Manage runs")
+    runs_subparsers = runs_parser.add_subparsers(dest="runs_command")
+    
+    runs_list = runs_subparsers.add_parser("list", help="List runs")
+    runs_list.add_argument("--server", default="http://localhost:8000", help="Server URL")
+    runs_list.add_argument("--status", help="Filter by status")
+    
+    runs_show = runs_subparsers.add_parser("show", help="Show run details")
+    runs_show.add_argument("run_id", help="Run ID")
+    runs_show.add_argument("--server", default="http://localhost:8000", help="Server URL")
+    
+    runs_cancel = runs_subparsers.add_parser("cancel", help="Cancel a run")
+    runs_cancel.add_argument("run_id", help="Run ID")
+    runs_cancel.add_argument("--server", default="http://localhost:8000", help="Server URL")
+
     args = parser.parse_args()
 
     if not args.command:
         parser.print_help()
         sys.exit(1)
 
-    # Load config
-    try:
-        config = PyocoConfig.from_yaml(args.config)
-    except Exception as e:
-        print(f"Error loading config: {e}")
-        sys.exit(1)
+    # Load config only if needed
+    config = None
+    if hasattr(args, 'config') and args.config:
+        try:
+            config = PyocoConfig.from_yaml(args.config)
+        except Exception as e:
+            print(f"Error loading config: {e}")
+            sys.exit(1)
 
-    # Discover tasks
-    loader = TaskLoader(config)
-    loader.load()
+    # Discover tasks only if config is loaded
+    loader = None
+    if config:
+        loader = TaskLoader(config)
+        loader.load()
 
     if args.command == "list-tasks":
+        if not loader:
+             print("Error: Config not loaded.")
+             sys.exit(1)
         print("Available tasks:")
         for name in loader.tasks:
             print(f" - {name}")
+        return
+
+    if args.command == "server":
+        if args.server_command == "start":
+            import uvicorn
+            print(f"🐇 Starting Kanban Server on {args.host}:{args.port}")
+            uvicorn.run("pyoco.server.api:app", host=args.host, port=args.port, log_level="info")
+        return
+
+    if args.command == "worker":
+        if args.worker_command == "start":
+            from ..worker.runner import Worker
+            tags = args.tags.split(",") if args.tags else []
+            worker = Worker(args.server, config, tags)
+            worker.start()
+        return
+
+    if args.command == "runs":
+        client = Client(args.server)
+        try:
+            if args.runs_command == "list":
+                runs = client.list_runs(status=args.status)
+                print(f"🐇 Active Runs ({len(runs)}):")
+                print(f"{'ID':<36} | {'Status':<12} | {'Flow':<15}")
+                print("-" * 70)
+                for r in runs:
+                    # RunContext doesn't have flow_name in core model, but store adds it.
+                    # We need to access it safely.
+                    flow_name = r.get("flow_name", "???")
+                    print(f"{r['run_id']:<36} | {r['status']:<12} | {flow_name:<15}")
+            
+            elif args.runs_command == "show":
+                run = client.get_run(args.run_id)
+                print(f"🐇 Run: {run['run_id']}")
+                print(f"Status: {run['status']}")
+                print("Tasks:")
+                for t_name, t_state in run.get("tasks", {}).items():
+                    print(f"  [{t_state}] {t_name}")
+            
+            elif args.runs_command == "cancel":
+                client.cancel_run(args.run_id)
+                print(f"🛑 Cancellation requested for run {args.run_id}")
+        except Exception as e:
+            print(f"Error: {e}")
         return
 
     if args.command == "run":
@@ -60,6 +144,25 @@ def main():
             print(f"Flow '{args.flow}' not found in config.")
             sys.exit(1)
         
+        # Params
+        params = flow_conf.defaults.copy()
+        if args.param:
+            for p in args.param:
+                if "=" in p:
+                    k, v = p.split("=", 1)
+                    params[k] = v # Simple string parsing for now
+
+        if args.server:
+            # Remote execution
+            client = Client(args.server)
+            try:
+                run_id = client.submit_run(args.flow, params)
+                print(f"🚀 Flow submitted! Run ID: {run_id}")
+                print(f"📋 View status: pyoco runs show {run_id} --server {args.server}")
+            except Exception as e:
+                print(f"Error submitting flow: {e}")
+                sys.exit(1)
+            return
         # Build Flow from graph string
         from ..dsl.syntax import TaskWrapper
         eval_context = {name: TaskWrapper(task) for name, task in loader.tasks.items()}
@@ -77,13 +180,7 @@ def main():
             backend = ConsoleTraceBackend(style="cute" if args.cute else "plain")
             engine = Engine(trace_backend=backend)
             
-            # Params
-            params = flow_conf.defaults.copy()
-            if args.param:
-                for p in args.param:
-                    if "=" in p:
-                        k, v = p.split("=", 1)
-                        params[k] = v # Simple string parsing for now
+            # Params (Moved up)
             
             # Signal handler for cancellation
             def signal_handler(sig, frame):

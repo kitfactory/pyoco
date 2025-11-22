@@ -83,17 +83,17 @@ Pyoco supports two output modes, compatible with future UI layers:
 **Goal:** Move from synchronous execution to a queued execution model without introducing distributed components.
 
 **Add:**
-1. **QueueBackend (in-memory)**
-   - `enqueue(run_id, task_id, ...)`
-   - `dequeue()` for a local worker loop
-2. **Local Worker**
-   - Single-thread worker pulling from the queue
-   - Honors cancellation (skips cancelled runs, removes cancelled tasks)
-3. **StateStore abstraction**
-   - In-memory version (default)
-   - Lightweight persistent version (JSONL or SQLite) for observability only
-4. **CLI: queue-aware introspection**
-   - `pyoco runs show <run_id>` shows queued, running, succeeded, failed, cancelled
+1. **QueueBackend (in-memory)** ✅
+   - `enqueue(run_id, task_id, ...)` ✅
+   - `dequeue()` for a local worker loop ✅
+2. **Local Worker** ✅
+   - Single-thread worker pulling from the queue ✅
+   - Honors cancellation (skips cancelled runs, removes cancelled tasks) ✅
+3. **StateStore abstraction** ✅
+   - In-memory version (default) ✅
+   - Lightweight persistent version (JSONL or SQLite) for observability only (Skipped for now)
+4. **CLI: queue-aware introspection** ✅
+   - `pyoco runs show <run_id>` shows queued, running, succeeded, failed, cancelled ✅
 
 **Not implemented here:**
 - Multi-process
@@ -105,25 +105,25 @@ Pyoco supports two output modes, compatible with future UI layers:
 **Goal:** Introduce a lightweight central server for queue management, state persistence, observability, and remote cancellation.
 
 **Add:**
-1. **Kanban Server components**
-   - Run registry
-   - Task registry (state + timestamps)
-   - Queue backend
-   - State backend
-2. **API**
-   - `POST /runs`
-   - `GET /runs/<id>`
-   - `GET /runs/<id>/tasks`
-   - `POST /runs/<id>/cancel`
-3. **Workers**
-   - `pyoco worker --server <url>`
-   - Pulls tasks from server queue
-   - Updates server-side TaskState
-   - Respects cancellation
-4. **CLI**
-   - `pyoco runs list`
-   - `pyoco runs show <id>`
-   - `pyoco runs cancel <id>`
+1. **Kanban Server components** ✅
+   - Run registry ✅
+   - Task registry (state + timestamps) ✅
+   - Queue backend ✅
+   - State backend ✅
+2. **API** ✅
+   - `POST /runs` ✅
+   - `GET /runs/<id>` ✅
+   - `GET /runs/<id>/tasks` (Included in GET /runs/<id>) ✅
+   - `POST /runs/<id>/cancel` ✅
+3. **Workers** ✅
+   - `pyoco worker --server <url>` ✅
+   - Pulls tasks from server queue ✅
+   - Updates server-side TaskState ✅
+   - Respects cancellation ✅
+4. **CLI** ✅
+   - `pyoco runs list` ✅
+   - `pyoco runs show <id>` ✅
+   - `pyoco runs cancel <id>` ✅
 
 **Explicit non-goals:**
 - Resume (no task context serialization)

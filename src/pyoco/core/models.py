@@ -49,6 +49,7 @@ class TaskState(Enum):
     CANCELLED = "CANCELLED"
 
 class RunStatus(Enum):
+    PENDING = "PENDING"
     RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"

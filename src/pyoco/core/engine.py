@@ -1,6 +1,6 @@
 import time
-from typing import Dict, Any, List, Set
-from .models import Flow, Task
+from typing import Dict, Any, List, Set, Optional
+from .models import Flow, Task, RunContext, TaskState, RunStatus
 from .context import Context
 from ..trace.backend import TraceBackend
 from ..trace.console import ConsoleTraceBackend
@@ -38,10 +38,12 @@ class Engine:
                 run_ctx.status = RunStatus.CANCELLING
                 # We don't force kill threads here, the loop will handle it.
 
-    def run(self, flow: Flow, params: Dict[str, Any] = None) -> Context:
+    def run(self, flow: Flow, params: Dict[str, Any] = None, run_context: Optional[RunContext] = None) -> Context:
         # Initialize RunContext (v0.2.0)
-        from .models import RunContext, TaskState, RunStatus
-        run_ctx = RunContext()
+        if run_context is None:
+            run_context = RunContext()
+        
+        run_ctx = run_context
         
         # Initialize all tasks as PENDING
         for task in flow.tasks:
