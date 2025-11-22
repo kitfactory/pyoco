@@ -18,6 +18,8 @@ It is ideal for small jobs, development environments, and personal projects wher
 - **Friendly trace logs**: Runs can be traced step by step from the terminal with cute (or plain) logs.
 - **Parallel Execution**: Automatically runs independent tasks in parallel.
 - **Artifact Management**: Easily save and manage task outputs and files.
+- **Observability**: Track execution with unique Run IDs and detailed state transitions.
+- **Control**: Cancel running workflows gracefully with `Ctrl+C`.
 
 ## 📦 Installation
 

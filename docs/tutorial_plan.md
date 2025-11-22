@@ -55,3 +55,19 @@ This document outlines the proposed step-by-step tutorial to help users master `
     - `fail_policy="isolate"`.
     - `timeout_sec`.
 - **Scenario**: A "flaky" network request task that retries and eventually succeeds (or fails safely).
+
+## 7. Custom Tasks (`07_custom_tasks`)
+**Goal**: Create reusable, structured tasks using `BaseTask`.
+- **Concepts**:
+    - Subclassing `BaseTask`.
+    - Implementing `run(self, ctx)`.
+    - Sharing logic between tasks.
+- **Scenario**: A custom multiplication task that inherits from a base class.
+
+## 8. Control & Observability (`08_control`)
+**Goal**: Manage and monitor long-running workflows.
+- **Concepts**:
+    - **Run ID**: Identifying specific executions.
+    - **Cancellation**: Stopping a flow with `Ctrl+C`.
+    - **Cooperative Cancellation**: Using `ctx.is_cancelled` in long tasks.
+- **Scenario**: A long-running "simulation" task that can be safely interrupted by the user.

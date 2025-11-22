@@ -16,6 +16,10 @@ Pyoco チュートリアルへようこそ！このガイドでは、最初の�
     *   タスクの出力をファイルとして保存します。
 6.  [応用: エラーハンドリング (Advanced: Error Handling)](06_errors_ja.md)
     *   リトライやタイムアウトを使って堅牢なワークフローを構築します。
+7.  [BaseTask を使ったカスタムタスク (Custom Tasks)](07_custom_tasks_ja.md)
+    *   `BaseTask` を継承して、再利用可能な構造化タスクを作成します。
+8.  [制御と可観測性 (Control & Observability)](08_control_ja.md)
+    *   Run ID の確認や、Ctrl+C によるキャンセル方法を学びます。
 
 ---
 [English Version](index.md)

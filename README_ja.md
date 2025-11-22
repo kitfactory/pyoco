@@ -18,6 +18,8 @@ Pyoco は、Airflow などの大規模なワークフローエンジンよりも
 - **Friendly trace logs**: ターミナルからキュートな（またはプレーンな）ログで実行をステップごとに追跡できます。
 - **Parallel Execution**: 独立したタスクを自動的に並列実行します。
 - **Artifact Management**: タスクの出力やファイルを簡単に保存・管理できます。
+- **Observability**: ユニークな Run ID と詳細な状態遷移で実行を追跡できます。
+- **Control**: `Ctrl+C` で実行中のワークフローを安全にキャンセルできます。
 
 ## 📦 インストール
 
