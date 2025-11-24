@@ -22,6 +22,8 @@ class WorkerPollResponse(BaseModel):
 
 class WorkerHeartbeatRequest(BaseModel):
     task_states: Dict[str, TaskState]
+    task_records: Dict[str, Any] = {}
+    logs: List[Dict[str, Any]] = []
     run_status: RunStatus
 
 class WorkerHeartbeatResponse(BaseModel):

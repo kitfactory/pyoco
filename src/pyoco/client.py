@@ -1,6 +1,6 @@
 import httpx
 from typing import Dict, List, Optional, Any
-from .core.models import RunStatus, TaskState
+from .core.models import RunStatus, TaskState, RunContext
 
 class Client:
     def __init__(self, server_url: str, client_id: str = "cli"):
@@ -17,10 +17,19 @@ class Client:
         resp.raise_for_status()
         return resp.json()["run_id"]
 
-    def list_runs(self, status: Optional[str] = None) -> List[Dict]:
+    def list_runs(
+        self,
+        status: Optional[str] = None,
+        flow: Optional[str] = None,
+        limit: Optional[int] = None,
+    ) -> List[Dict]:
         params = {}
         if status:
             params["status"] = status
+        if flow:
+            params["flow"] = flow
+        if limit:
+            params["limit"] = limit
         resp = self.client.get("/runs", params=params)
         resp.raise_for_status()
         return resp.json()
@@ -49,21 +58,32 @@ class Client:
             # print(f"Poll failed: {e}")
             return None
 
-    def heartbeat(self, run_id: str, task_states: Dict[str, TaskState], run_status: RunStatus) -> bool:
+    def heartbeat(self, run_ctx: RunContext) -> bool:
         """
         Sends heartbeat. Returns True if cancellation is requested.
         """
         try:
-            # Convert Enums to values
-            states_json = {k: v.value if hasattr(v, 'value') else v for k, v in task_states.items()}
-            status_value = run_status.value if hasattr(run_status, 'value') else run_status
-            
-            resp = self.client.post(f"/runs/{run_id}/heartbeat", json={
+            states_json = {k: v.value if hasattr(v, 'value') else v for k, v in run_ctx.tasks.items()}
+            status_value = run_ctx.status.value if hasattr(run_ctx.status, 'value') else run_ctx.status
+            payload = {
                 "task_states": states_json,
+                "task_records": run_ctx.serialize_task_records(),
+                "logs": run_ctx.drain_logs(),
                 "run_status": status_value
-            })
+            }
+            resp = self.client.post(f"/runs/{run_ctx.run_id}/heartbeat", json=payload)
             resp.raise_for_status()
             return resp.json().get("cancel_requested", False)
         except Exception as e:
             print(f"Heartbeat failed: {e}")
             return False
+
+    def get_run_logs(self, run_id: str, task: Optional[str] = None, tail: Optional[int] = None) -> Dict[str, Any]:
+        params = {}
+        if task:
+            params["task"] = task
+        if tail:
+            params["tail"] = tail
+        resp = self.client.get(f"/runs/{run_id}/logs", params=params)
+        resp.raise_for_status()
+        return resp.json()

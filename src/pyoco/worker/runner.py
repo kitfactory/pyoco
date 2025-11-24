@@ -21,11 +21,7 @@ class RemoteTraceBackend(TraceBackend):
     def _send_heartbeat(self, force=False):
         now = time.time()
         if force or (now - self.last_heartbeat > self.heartbeat_interval):
-            cancel = self.client.heartbeat(
-                self.run_ctx.run_id,
-                self.run_ctx.tasks,
-                self.run_ctx.status
-            )
+            cancel = self.client.heartbeat(self.run_ctx)
             if cancel and self.run_ctx.status not in [RunStatus.CANCELLING, RunStatus.CANCELLED]:
                 print(f"🛑 Cancellation requested from server for run {self.run_ctx.run_id}")
                 self.run_ctx.status = RunStatus.CANCELLING
@@ -162,10 +158,9 @@ class Worker:
             engine.run(flow, params=params, run_context=run_ctx)
             print(f"✅ Job {run_id} completed: {run_ctx.status}")
             # Send final heartbeat
-            self.client.heartbeat(run_id, run_ctx.tasks, run_ctx.status)
+            self.client.heartbeat(run_ctx)
         except Exception as e:
             print(f"💥 Job {run_id} failed: {e}")
             # Heartbeat one last time
             run_ctx.status = RunStatus.FAILED
-            self.client.heartbeat(run_id, run_ctx.tasks, run_ctx.status)
-
+            self.client.heartbeat(run_ctx)

@@ -1,28 +1,52 @@
+import os
+import sys
 import time
 import threading
-import uvicorn
+from pathlib import Path
+
 import pytest
-import requests
-from pyoco.server.api import app, store
+
+_ROOT = Path(__file__).resolve().parents[1]
+_VENV_SITE = _ROOT / ".venv" / "lib" / "python3.10" / "site-packages"
+
+def _ensure_path(path: Path):
+    string = str(path)
+    if string not in sys.path:
+        sys.path.insert(0, string)
+    existing = os.environ.get("PYTHONPATH")
+    paths = existing.split(os.pathsep) if existing else []
+    if string not in paths:
+        os.environ["PYTHONPATH"] = string + (os.pathsep + existing if existing else "")
+
+if _VENV_SITE.exists():
+    _ensure_path(_VENV_SITE)
+_ensure_path(_ROOT)
+
+from socketless_http import switch_to_ipc_connection, reset_ipc_state
+
 from pyoco.worker.runner import Worker
 from pyoco.client import Client
 from pyoco.schemas.config import PyocoConfig
 from pyoco.core.models import RunStatus
 
-# Server thread
-class ServerThread(threading.Thread):
-    def __init__(self, host="127.0.0.1", port=8002):
-        super().__init__()
-        self.host = host
-        self.port = port
-        self.should_exit = False
-        self.server = uvicorn.Server(config=uvicorn.Config(app, host=host, port=port, log_level="error"))
+SOCKETLESS_BASE_URL = "http://testserver"
 
-    def run(self):
-        self.server.run()
 
-    def stop(self):
-        self.server.should_exit = True
+@pytest.fixture(scope="module", autouse=True)
+def socketless_server():
+    cleanup = switch_to_ipc_connection(
+        "pyoco.server.api:app",
+        reset_hook="pyoco.socketless_reset:reset_store",
+        base_url=SOCKETLESS_BASE_URL,
+        debug=True,
+    )
+    yield
+    cleanup()
+
+
+@pytest.fixture(autouse=True)
+def _reset_ipc_state():
+    reset_ipc_state()
 
 # Worker thread
 class WorkerThread(threading.Thread):
@@ -38,32 +62,14 @@ class WorkerThread(threading.Thread):
             if job:
                 self.worker._execute_job(job)
             else:
-                time.sleep(0.1)
+                time.sleep(2.0)
 
     def stop(self):
         self.should_stop = True
 
 @pytest.fixture(scope="module")
 def server_and_worker():
-    # Setup
-    host = "127.0.0.1"
-    port = 8002
-    server_url = f"http://{host}:{port}"
-    
-    # Start Server
-    server_thread = ServerThread(host, port)
-    server_thread.start()
-    
-    # Wait for server
-    for _ in range(50):
-        try:
-            requests.get(f"{server_url}/runs")
-            break
-        except:
-            time.sleep(0.1)
-    else:
-        raise RuntimeError("Server failed to start")
-
+    server_url = SOCKETLESS_BASE_URL
     # Config for worker (using cute_demo)
     config = PyocoConfig.from_yaml("examples/cute_demo/flow.yaml")
     
@@ -76,8 +82,6 @@ def server_and_worker():
     # Teardown
     worker_thread.stop()
     worker_thread.join(timeout=2)
-    server_thread.stop()
-    server_thread.join(timeout=2)
 
 def test_remote_execution(server_and_worker):
     server_url = server_and_worker
@@ -92,7 +96,7 @@ def test_remote_execution(server_and_worker):
         run = client.get_run(run_id)
         if run["status"] in [RunStatus.COMPLETED.value, RunStatus.FAILED.value]:
             break
-        time.sleep(0.1)
+        time.sleep(2.0)
     
     final_run = client.get_run(run_id)
     assert final_run["status"] == RunStatus.COMPLETED.value
@@ -114,7 +118,7 @@ def test_remote_cancellation(server_and_worker):
         run = client.get_run(run_id)
         if run["status"] == RunStatus.RUNNING.value:
             break
-        time.sleep(0.1)
+        time.sleep(2.0)
         
     # Cancel
     client.cancel_run(run_id)

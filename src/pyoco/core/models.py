@@ -1,8 +1,9 @@
-from typing import Any, Callable, Dict, List, Optional, Set, Union, ForwardRef
+from typing import Any, Callable, Dict, List, Optional, Set, Union
 from dataclasses import dataclass, field
 from enum import Enum
 import time
 import uuid
+import json
 
 @dataclass
 class Task:
@@ -57,15 +58,88 @@ class RunStatus(Enum):
     CANCELLED = "CANCELLED"
 
 @dataclass
+class TaskRecord:
+    state: TaskState = TaskState.PENDING
+    started_at: Optional[float] = None
+    ended_at: Optional[float] = None
+    duration_ms: Optional[float] = None
+    error: Optional[str] = None
+    traceback: Optional[str] = None
+    inputs: Dict[str, Any] = field(default_factory=dict)
+    output: Any = None
+    artifacts: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
 class RunContext:
     """
     Holds the state of a single workflow execution.
     """
     run_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    flow_name: str = "main"
+    params: Dict[str, Any] = field(default_factory=dict)
     status: RunStatus = RunStatus.RUNNING
     tasks: Dict[str, TaskState] = field(default_factory=dict)
+    task_records: Dict[str, TaskRecord] = field(default_factory=dict)
     start_time: float = field(default_factory=time.time)
     end_time: Optional[float] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    logs: List[Dict[str, Any]] = field(default_factory=list)
+    _pending_logs: List[Dict[str, Any]] = field(default_factory=list, repr=False)
+    _log_seq: int = field(default=0, repr=False)
+    log_bytes: Dict[str, int] = field(default_factory=dict)
+    metrics_recorded_tasks: Set[str] = field(default_factory=set, repr=False)
+    metrics_run_observed: bool = field(default=False, repr=False)
+    webhook_notified_status: Optional[str] = field(default=None, repr=False)
+
+    def ensure_task_record(self, task_name: str) -> TaskRecord:
+        if task_name not in self.task_records:
+            self.task_records[task_name] = TaskRecord()
+        return self.task_records[task_name]
+
+    def append_log(self, task_name: str, stream: str, payload: str):
+        if not payload:
+            return
+        entry = {
+            "seq": self._log_seq,
+            "task": task_name,
+            "stream": stream,
+            "text": payload,
+            "timestamp": time.time(),
+        }
+        self._log_seq += 1
+        self.logs.append(entry)
+        self._pending_logs.append(entry)
+
+    def drain_logs(self) -> List[Dict[str, Any]]:
+        drained = list(self._pending_logs)
+        self._pending_logs.clear()
+        return drained
+
+    def serialize_task_records(self) -> Dict[str, Any]:
+        serialized: Dict[str, Any] = {}
+        for name, record in self.task_records.items():
+            serialized[name] = {
+                "state": record.state.value if hasattr(record.state, "value") else record.state,
+                "started_at": record.started_at,
+                "ended_at": record.ended_at,
+                "duration_ms": record.duration_ms,
+                "error": record.error,
+                "traceback": record.traceback,
+                "inputs": {k: self._safe_value(v) for k, v in record.inputs.items()},
+                "output": self._safe_value(record.output),
+                "artifacts": record.artifacts,
+            }
+        return serialized
+
+    def _safe_value(self, value: Any) -> Any:
+        if isinstance(value, (str, int, float, bool)) or value is None:
+            return value
+        try:
+            json.dumps(value)
+            return value
+        except Exception:
+            return repr(value)
 
 @dataclass
 class Flow:
@@ -78,8 +152,27 @@ class Flow:
     name: str = "main"
     tasks: Set[Task] = field(default_factory=set)
     _tail: Set[Task] = field(default_factory=set)
+    _definition: List[Any] = field(default_factory=list, repr=False)
+    _has_control_flow: bool = False
     
     def __rshift__(self, other):
+        from ..dsl.syntax import TaskWrapper, FlowFragment, ensure_fragment
+
+        if isinstance(other, TaskWrapper):
+            fragment = other
+            self._record_fragment(fragment)
+            self._append_task(fragment.task)
+            return self
+
+        if hasattr(other, "to_subflow"):
+            fragment = other if isinstance(other, FlowFragment) else ensure_fragment(other)
+            self._record_fragment(fragment)
+            if not self._has_control_flow and not fragment.has_control_flow():
+                self._append_linear_fragment(fragment)
+            else:
+                self._has_control_flow = True
+            return self
+
         # Flow >> Task/List/Branch
         new_tasks = []
         is_branch = False
@@ -155,3 +248,39 @@ class Flow:
     def add_task(self, task: Task):
         self.tasks.add(task)
 
+    def has_control_flow(self) -> bool:
+        return self._has_control_flow
+
+    def build_program(self):
+        from ..dsl.nodes import SubFlowNode
+        return SubFlowNode(list(self._definition))
+
+    def _record_fragment(self, fragment):
+        from ..dsl.nodes import TaskNode
+        subflow = fragment.to_subflow()
+        self._definition.extend(subflow.steps)
+        for task in fragment.task_nodes():
+            self.add_task(task)
+        if any(not isinstance(step, TaskNode) for step in subflow.steps):
+            self._has_control_flow = True
+
+    def _append_linear_fragment(self, fragment):
+        subflow = fragment.to_subflow()
+        for step in subflow.steps:
+            if hasattr(step, "task"):
+                self._append_task(step.task)
+
+    def _append_task(self, task: Task):
+        self.add_task(task)
+        if self._has_control_flow:
+            self._tail = {task}
+            return
+
+        if not self._tail:
+            self._tail = {task}
+            return
+
+        for tail_task in self._tail:
+            tail_task.dependents.add(task)
+            task.dependencies.add(tail_task)
+        self._tail = {task}

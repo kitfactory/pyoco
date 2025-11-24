@@ -1,9 +1,32 @@
 import time
+import io
+import sys
+import traceback
 from typing import Dict, Any, List, Set, Optional
+import contextlib
 from .models import Flow, Task, RunContext, TaskState, RunStatus
-from .context import Context
+from .context import Context, LoopFrame
+from .exceptions import UntilMaxIterationsExceeded
 from ..trace.backend import TraceBackend
 from ..trace.console import ConsoleTraceBackend
+from ..dsl.nodes import TaskNode, RepeatNode, ForEachNode, UntilNode, SwitchNode, DEFAULT_CASE_VALUE
+from ..dsl.expressions import Expression
+
+class TeeStream:
+    def __init__(self, original):
+        self.original = original
+        self.buffer = io.StringIO()
+
+    def write(self, data):
+        self.original.write(data)
+        self.buffer.write(data)
+        return len(data)
+
+    def flush(self):
+        self.original.flush()
+
+    def getvalue(self):
+        return self.buffer.getvalue()
 
 class Engine:
     """
@@ -44,16 +67,31 @@ class Engine:
             run_context = RunContext()
         
         run_ctx = run_context
+        run_ctx.flow_name = flow.name
+        run_ctx.params = params or {}
         
         # Initialize all tasks as PENDING
         for task in flow.tasks:
             run_ctx.tasks[task.name] = TaskState.PENDING
+            run_ctx.ensure_task_record(task.name)
             
         ctx = Context(params=params or {}, run_context=run_ctx)
         self.trace.on_flow_start(flow.name, run_id=run_ctx.run_id)
         
         # Register active run
         self.active_runs[run_ctx.run_id] = run_ctx
+
+        if flow.has_control_flow():
+            try:
+                program = flow.build_program()
+                self._execute_subflow(program, ctx)
+                run_ctx.status = RunStatus.COMPLETED
+            except Exception:
+                run_ctx.status = RunStatus.FAILED
+                run_ctx.end_time = time.time()
+                raise
+            run_ctx.end_time = time.time()
+            return ctx
         
         try:
             executed: Set[Task] = set()
@@ -264,12 +302,130 @@ class Engine:
         run_ctx.end_time = time.time()
         return ctx
 
+    def _execute_subflow(self, subflow, ctx: Context):
+        for node in subflow.steps:
+            self._execute_node(node, ctx)
+
+    def _execute_node(self, node, ctx: Context):
+        if isinstance(node, TaskNode):
+            self._execute_task(node.task, ctx)
+        elif isinstance(node, RepeatNode):
+            self._execute_repeat(node, ctx)
+        elif isinstance(node, ForEachNode):
+            self._execute_foreach(node, ctx)
+        elif isinstance(node, UntilNode):
+            self._execute_until(node, ctx)
+        elif isinstance(node, SwitchNode):
+            self._execute_switch(node, ctx)
+        else:
+            raise TypeError(f"Unknown node type: {type(node)}")
+
+    def _execute_repeat(self, node: RepeatNode, ctx: Context):
+        count_value = self._resolve_repeat_count(node.count, ctx)
+        for index in range(count_value):
+            frame = LoopFrame(name="repeat", type="repeat", index=index, iteration=index + 1, count=count_value)
+            ctx.push_loop(frame)
+            try:
+                self._execute_subflow(node.body, ctx)
+            finally:
+                ctx.pop_loop()
+
+    def _execute_foreach(self, node: ForEachNode, ctx: Context):
+        sequence = self._eval_expression(node.source, ctx)
+        if not isinstance(sequence, (list, tuple)):
+            raise TypeError("ForEach source must evaluate to a list or tuple.")
+
+        total = len(sequence)
+        label = node.alias or node.source.source
+        for index, item in enumerate(sequence):
+            frame = LoopFrame(
+                name=f"foreach:{label}",
+                type="foreach",
+                index=index,
+                iteration=index + 1,
+                count=total,
+                item=item,
+            )
+            ctx.push_loop(frame)
+            if node.alias:
+                ctx.set_var(node.alias, item)
+            try:
+                self._execute_subflow(node.body, ctx)
+            finally:
+                if node.alias:
+                    ctx.clear_var(node.alias)
+                ctx.pop_loop()
+
+    def _execute_until(self, node: UntilNode, ctx: Context):
+        max_iter = node.max_iter or 1000
+        iteration = 0
+        last_condition = None
+        while True:
+            iteration += 1
+            frame = LoopFrame(
+                name="until",
+                type="until",
+                index=iteration - 1,
+                iteration=iteration,
+                condition=last_condition,
+                count=max_iter,
+            )
+            ctx.push_loop(frame)
+            try:
+                self._execute_subflow(node.body, ctx)
+                condition_result = bool(self._eval_expression(node.condition, ctx))
+            finally:
+                ctx.pop_loop()
+
+            last_condition = condition_result
+            if condition_result:
+                break
+            if iteration >= max_iter:
+                raise UntilMaxIterationsExceeded(node.condition.source, max_iter)
+
+    def _execute_switch(self, node: SwitchNode, ctx: Context):
+        value = self._eval_expression(node.expression, ctx)
+        default_case = None
+        for case in node.cases:
+            if case.value == DEFAULT_CASE_VALUE:
+                if default_case is None:
+                    default_case = case
+                continue
+            if case.value == value:
+                self._execute_subflow(case.target, ctx)
+                return
+        if default_case:
+            self._execute_subflow(default_case.target, ctx)
+    def _resolve_repeat_count(self, count_value, ctx: Context) -> int:
+        if isinstance(count_value, Expression):
+            resolved = self._eval_expression(count_value, ctx)
+        else:
+            resolved = count_value
+        if not isinstance(resolved, int):
+            raise TypeError("Repeat count must evaluate to an integer.")
+        if resolved < 0:
+            raise ValueError("Repeat count cannot be negative.")
+        return resolved
+
+    def _eval_expression(self, expression, ctx: Context):
+        if isinstance(expression, Expression):
+            return expression.evaluate(ctx=ctx.expression_data(), env=ctx.env_data())
+        return expression
+
     def _execute_task(self, task: Task, ctx: Context):
         # Update state to RUNNING
         from .models import TaskState
+        run_ctx = ctx.run_context
         if ctx.run_context:
             ctx.run_context.tasks[task.name] = TaskState.RUNNING
-            
+            record = ctx.run_context.ensure_task_record(task.name)
+            record.state = TaskState.RUNNING
+            record.started_at = time.time()
+            record.error = None
+            record.traceback = None
+        else:
+            record = None
+
         self.trace.on_node_start(task.name)
         start_time = time.time()
         # Retry loop
@@ -301,8 +457,17 @@ class Engine:
                     elif param_name in ctx.results:
                         kwargs[param_name] = ctx.results[param_name]
                 
-                result = task.func(**kwargs)
+                if record:
+                    record.inputs = {k: v for k, v in kwargs.items() if k != "ctx"}
+
+                stdout_capture = TeeStream(sys.stdout)
+                stderr_capture = TeeStream(sys.stderr)
+                with contextlib.redirect_stdout(stdout_capture), contextlib.redirect_stderr(stderr_capture):
+                    result = task.func(**kwargs)
                 ctx.set_result(task.name, result)
+                if run_ctx:
+                    run_ctx.append_log(task.name, "stdout", stdout_capture.getvalue())
+                    run_ctx.append_log(task.name, "stderr", stderr_capture.getvalue())
                 
                 # Handle outputs saving
                 for target_path in task.outputs:
@@ -333,10 +498,24 @@ class Engine:
                 # Update state to SUCCEEDED
                 if ctx.run_context:
                     ctx.run_context.tasks[task.name] = TaskState.SUCCEEDED
+                    if record:
+                        record.state = TaskState.SUCCEEDED
+                        record.ended_at = time.time()
+                        record.duration_ms = (record.ended_at - record.started_at) * 1000
+                        record.output = result
                 
                 return # Success
                 
             except Exception as e:
+                if run_ctx:
+                    run_ctx.append_log(task.name, "stdout", stdout_capture.getvalue() if 'stdout_capture' in locals() else "")
+                    run_ctx.append_log(task.name, "stderr", stderr_capture.getvalue() if 'stderr_capture' in locals() else "")
+                if record:
+                    record.state = TaskState.FAILED
+                    record.ended_at = time.time()
+                    record.duration_ms = (record.ended_at - record.started_at) * 1000
+                    record.error = str(e)
+                    record.traceback = traceback.format_exc()
                 if retries_left > 0:
                     retries_left -= 1
                     # Log retry?

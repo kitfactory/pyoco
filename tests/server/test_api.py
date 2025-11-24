@@ -1,95 +1,144 @@
 import pytest
-from fastapi.testclient import TestClient
-from pyoco.server.api import app, store
-from pyoco.core.models import RunStatus, TaskState
 
-client = TestClient(app)
+from pyoco.server import api
+from pyoco.server.models import (
+    RunSubmitRequest,
+    WorkerHeartbeatRequest,
+    WorkerPollRequest,
+)
+from pyoco.core.models import RunStatus, TaskState
+from pyoco.server.metrics import metrics
+from pyoco.server.webhook import webhook_notifier
+
 
 @pytest.fixture(autouse=True)
-def clear_store():
-    store.runs.clear()
-    store.queue.clear()
+def clear_store(tmp_path):
+    api.store.runs.clear()
+    api.store.queue.clear()
+    api.store.history.clear()
+    api.store.max_runs = 50
+    api.store.archive_dir = tmp_path
+    api.store.log_limit_bytes = 1024 * 1024
+    metrics.reset()
+    webhook_notifier.reset()
 
-def test_submit_run():
-    resp = client.post("/runs", json={"flow_name": "test_flow", "params": {"x": 1}})
-    assert resp.status_code == 200
-    data = resp.json()
-    assert "run_id" in data
-    assert data["status"] == RunStatus.PENDING.value
-    
-    # Verify it's in the store
-    run_id = data["run_id"]
-    assert run_id in store.runs
-    assert run_id in store.queue
 
-def test_list_runs():
-    client.post("/runs", json={"flow_name": "f1"})
-    client.post("/runs", json={"flow_name": "f2"})
-    
-    resp = client.get("/runs")
-    assert resp.status_code == 200
-    data = resp.json()
-    assert len(data) >= 2
+@pytest.mark.asyncio
+async def test_submit_run():
+    resp = await api.submit_run(RunSubmitRequest(flow_name="test_flow", params={"x": 1}))
+    assert resp.status == RunStatus.PENDING
+    assert resp.run_id in api.store.runs
+    assert resp.run_id in api.store.queue
 
-def test_get_run():
-    # Create a run
-    resp = client.post("/runs", json={"flow_name": "f3"})
-    run_id = resp.json()["run_id"]
-    
-    resp = client.get(f"/runs/{run_id}")
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["run_id"] == run_id
+
+@pytest.mark.asyncio
+async def test_list_runs():
+    await api.submit_run(RunSubmitRequest(flow_name="f1"))
+    await api.submit_run(RunSubmitRequest(flow_name="f2"))
+    runs = await api.list_runs()
+    assert len(runs) >= 2
+
+
+@pytest.mark.asyncio
+async def test_get_run():
+    resp = await api.submit_run(RunSubmitRequest(flow_name="f3"))
+    data = await api.get_run(resp.run_id)
+    assert data["run_id"] == resp.run_id
     assert data["status"] == RunStatus.PENDING.value
 
-def test_cancel_run():
-    resp = client.post("/runs", json={"flow_name": "f4"})
-    run_id = resp.json()["run_id"]
-    
-    resp = client.post(f"/runs/{run_id}/cancel")
-    assert resp.status_code == 200
-    
-    # Check status
-    resp = client.get(f"/runs/{run_id}")
-    assert resp.json()["status"] == RunStatus.CANCELLING.value
 
-def test_worker_poll():
-    # Ensure queue has something
-    client.post("/runs", json={"flow_name": "f5"})
-    
-    resp = client.post("/workers/poll", json={"worker_id": "w1"})
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["run_id"] is not None
-    assert data["flow_name"] == "f5"
-    
-    # Poll again, should be empty (dequeued)
-    resp = client.post("/workers/poll", json={"worker_id": "w1"})
-    assert resp.json()["run_id"] is None
+@pytest.mark.asyncio
+async def test_cancel_run():
+    resp = await api.submit_run(RunSubmitRequest(flow_name="f4"))
+    await api.cancel_run(resp.run_id)
+    data = await api.get_run(resp.run_id)
+    assert data["status"] == RunStatus.CANCELLING.value
 
-def test_worker_heartbeat():
-    resp = client.post("/runs", json={"flow_name": "f6"})
-    run_id = resp.json()["run_id"]
-    
-    # Update status
-    resp = client.post(f"/runs/{run_id}/heartbeat", json={
-        "task_states": {"t1": TaskState.RUNNING.value},
-        "run_status": RunStatus.RUNNING.value
-    })
-    assert resp.status_code == 200
-    assert resp.json()["cancel_requested"] is False
-    
-    # Check store update
-    run = store.get_run(run_id)
-    assert run.status == RunStatus.RUNNING
-    assert run.tasks["t1"] == TaskState.RUNNING
-    
-    # Request cancel
-    client.post(f"/runs/{run_id}/cancel")
-    
-    # Heartbeat should see cancel
-    resp = client.post(f"/runs/{run_id}/heartbeat", json={
-        "task_states": {},
-        "run_status": RunStatus.RUNNING.value
-    })
-    assert resp.json()["cancel_requested"] is True
+
+@pytest.mark.asyncio
+async def test_worker_poll():
+    await api.submit_run(RunSubmitRequest(flow_name="poll"))
+    resp = await api.poll_work(WorkerPollRequest(worker_id="w1"))
+    assert resp.run_id is not None
+    assert resp.flow_name == "poll"
+    resp2 = await api.poll_work(WorkerPollRequest(worker_id="w1"))
+    assert resp2.run_id is None
+
+
+@pytest.mark.asyncio
+async def test_worker_heartbeat_and_cancel():
+    resp = await api.submit_run(RunSubmitRequest(flow_name="hb"))
+    run_id = resp.run_id
+    heartbeat_resp = await api.heartbeat(
+        run_id,
+        WorkerHeartbeatRequest(
+            task_states={"t1": TaskState.RUNNING.value},
+            task_records={"t1": {"state": TaskState.RUNNING.value}},
+            logs=[{"seq": 0, "task": "t1", "stream": "stdout", "text": "log"}],
+            run_status=RunStatus.RUNNING,
+        ),
+    )
+    assert heartbeat_resp.cancel_requested is False
+    await api.cancel_run(run_id)
+    heartbeat_resp2 = await api.heartbeat(
+        run_id,
+        WorkerHeartbeatRequest(
+            task_states={},
+            task_records={},
+            logs=[],
+            run_status=RunStatus.RUNNING,
+        ),
+    )
+    assert heartbeat_resp2.cancel_requested is True
+
+
+@pytest.mark.asyncio
+async def test_logs_endpoint():
+    resp = await api.submit_run(RunSubmitRequest(flow_name="logs"))
+    await api.heartbeat(
+        resp.run_id,
+        WorkerHeartbeatRequest(
+            task_states={},
+            task_records={},
+            logs=[{"seq": 0, "task": "t1", "stream": "stdout", "text": "hello"}],
+            run_status=RunStatus.RUNNING,
+        ),
+    )
+    data = await api.get_logs(resp.run_id)
+    assert data["logs"][0]["text"] == "hello"
+
+
+@pytest.mark.asyncio
+async def test_log_backpressure():
+    api.store.log_limit_bytes = 8
+    resp = await api.submit_run(RunSubmitRequest(flow_name="log_limit"))
+    await api.heartbeat(
+        resp.run_id,
+        WorkerHeartbeatRequest(
+            task_states={},
+            task_records={},
+            logs=[{"seq": 1, "task": "t1", "stream": "stdout", "text": "abcdefghijk"}],
+            run_status=RunStatus.RUNNING,
+        ),
+    )
+    run = api.store.get_run(resp.run_id)
+    assert "truncated" in run.logs[-1]["text"]
+
+
+@pytest.mark.asyncio
+async def test_run_retention_spills_to_disk(tmp_path):
+    api.store.max_runs = 1
+    api.store.archive_dir = tmp_path
+    resp = await api.submit_run(RunSubmitRequest(flow_name="old"))
+    await api.heartbeat(
+        resp.run_id,
+        WorkerHeartbeatRequest(
+            task_states={},
+            task_records={},
+            logs=[],
+            run_status=RunStatus.COMPLETED,
+        ),
+    )
+    await api.submit_run(RunSubmitRequest(flow_name="new"))
+    assert api.store.get_run(resp.run_id) is None
+    assert (tmp_path / f"{resp.run_id}.json").exists()

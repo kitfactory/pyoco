@@ -1,9 +1,10 @@
 import importlib
 import pkgutil
 import sys
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Set
 from ..core.models import Task
 from ..dsl.syntax import TaskWrapper
+from .plugins import PluginRegistry, iter_entry_points
 
 class TaskLoader:
     def __init__(self, config: Any, strict: bool = False):
@@ -11,6 +12,7 @@ class TaskLoader:
         self.strict = strict
         self.tasks: Dict[str, Task] = {}
         self._explicit_tasks: Set[str] = set()
+        self.plugin_reports: List[Dict[str, Any]] = []
 
     def load(self):
         # Load explicitly defined tasks in config FIRST (Higher priority)
@@ -30,6 +32,8 @@ class TaskLoader:
         # Load from glob modules
         for pattern in self.config.discovery.glob_modules:
             self._load_glob_modules(pattern)
+
+        self._load_entry_point_plugins()
 
     def _register_task(self, name: str, task: Task):
         if name in self.tasks:
@@ -96,6 +100,33 @@ class TaskLoader:
                 
             module_name = rel_path.replace(os.sep, ".")[:-3] # strip .py
             self._load_module(module_name)
+
+    def _load_entry_point_plugins(self):
+        entries = iter_entry_points()
+        for ep in entries:
+            info = {
+                "name": ep.name,
+                "value": ep.value,
+                "module": getattr(ep, "module", ""),
+                "tasks": [],
+                "warnings": [],
+            }
+            registry = PluginRegistry(self, ep.name)
+            try:
+                hook = ep.load()
+                if not callable(hook):
+                    raise TypeError("Entry point must be callable")
+                hook(registry)
+                info["tasks"] = list(registry.records)
+                info["warnings"] = list(registry.warnings)
+                if not registry.records:
+                    info["warnings"].append("no tasks registered")
+            except Exception as exc:
+                info["error"] = str(exc)
+                if self.strict:
+                    raise
+                print(f"Warning: Plugin '{ep.name}' failed to load: {exc}")
+            self.plugin_reports.append(info)
 
     def _scan_module(self, module: Any):
         for name, obj in vars(module).items():
