@@ -121,6 +121,20 @@ export PYOCO_CUTE=0  # Cuteモードを無効化
 pyoco run --non-cute ...
 ```
 
+## 🔭 オブザーバビリティ (v0.5)
+
+- `/metrics` で Prometheus 指標（`pyoco_runs_total`, `pyoco_runs_in_progress`, `pyoco_task_duration_seconds`, `pyoco_run_duration_seconds`）を公開。Grafana/Prometheus からそのまま取得できます。
+- `/runs` に `status`/`flow`/`limit` フィルタと `task_summary` を追加、`/runs/{id}/logs?tail=100` で必要なログだけ取得。
+- `PYOCO_WEBHOOK_*` を設定すると Run の COMPLETED/FAILED を任意の Webhook に通知可能。
+- `docs/grafana_pyoco_cute.json` をインポートすると、ラベンダー×キャロットのキュートな3パネルダッシュボード（進行中カウンタ、完了トレンド、フロー別平均時間）がすぐに使えます。
+- 手順の詳細や Webhook/Prometheus 設定例は [docs/observability.md](docs/observability.md) を参照してください。
+
+## 🧩 プラグイン
+
+`pyoco.tasks` エントリポイントに Hook (`def register_tasks(registry): ...`) を公開すると、Pyoco が自動でタスクをロードします。v0.5.1 では **Task サブクラス優先** を推奨します（callable も動きますが警告対象）。`docs/plugins.md` に `PluginRegistry` の使い方、`pyproject.toml` 設定例、`pyoco plugins list` / `pyoco plugins lint` の説明を掲載しています。
+
+**大きなデータについて:** そのままコピーせずハンドルを渡すのが安全です。巨大なテンソル/画像は `ctx.artifacts` や `ctx.scratch` にパスやハンドルを置き、必要なタスクだけが実体化する形にします。遅延パイプライン（例: DataPipe）は、実際に回すタスク（例: 学習タスク）でパイプ構成をログに出し、上流で全量展開しないようにします。
+
 ## 📚 ドキュメント
 
 - [チュートリアル](docs/tutorial/index.md)

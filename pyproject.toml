@@ -1,6 +1,6 @@
 [project]
 name = "pyoco"
-version = "0.3.0"
+version = "0.5.1"
 description = "A workflow engine with sugar syntax"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -9,4 +9,12 @@ dependencies = [
     "fastapi>=0.100.0",
     "uvicorn>=0.20.0",
     "httpx>=0.24.0",
+    "prometheus-client>=0.20.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.1",
+    "socketless-http>=0.1.0",
+    "pytest-asyncio>=0.23.0",
 ]

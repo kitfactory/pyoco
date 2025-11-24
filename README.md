@@ -121,6 +121,20 @@ Or via CLI flag:
 pyoco run --non-cute ...
 ```
 
+## 🔭 Observability Bridge (v0.5)
+
+- `/metrics` exposes Prometheus counters (`pyoco_runs_total`, `pyoco_runs_in_progress`) and histograms (`pyoco_task_duration_seconds`, `pyoco_run_duration_seconds`). Point Grafana/Prometheus at it to watch pipelines without opening sockets.
+- `/runs` now accepts `status`, `flow`, `limit` query params; `/runs/{id}/logs?tail=100` fetches only the latest snippets for dashboards.
+- Webhook notifications fire when runs COMPLETE/FAIL—configure via `PYOCO_WEBHOOK_*` env vars and forward to Slack or your alerting stack.
+- Import `docs/grafana_pyoco_cute.json` for a lavender/orange starter dashboard (3 panels: in-progress count, completion trend, per-flow latency).
+- 詳細な手順は [docs/observability.md](docs/observability.md) を参照してください。
+
+## 🧩 Plug-ins
+
+Need to share domain-specific tasks? Publish an entry point under `pyoco.tasks` and pyoco will auto-load it. In v0.5.1 we recommend **Task subclasses first** (callables still work with warnings). See [docs/plugins.md](docs/plugins.md) for examples, quickstart, and `pyoco plugins list` / `pyoco plugins lint`.
+
+**Big data note:** pass handles, not copies. For large tensors/images, stash paths or handles in `ctx.artifacts`/`ctx.scratch` and let downstream tasks materialize only when needed. For lazy pipelines (e.g., DataPipe), log the pipeline when you actually iterate (typically the training task) instead of materializing upstream.
+
 ## 📚 Documentation
 
 - [Tutorials](docs/tutorial/index.md)
