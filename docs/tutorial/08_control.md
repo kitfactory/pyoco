@@ -17,7 +17,7 @@ When you run Pyoco, the `run_id` is now displayed at the beginning of the log.
 🐇 pyoco > start flow=my_flow run_id=a1b2c3d4-...
 ```
 
-This ID will be used for log searching and execution management in future server features (planned for v0.3.0).
+This ID is useful for log correlation and local debugging (server features are archived).
 
 ## 2. Creating a Cancellable Task
 

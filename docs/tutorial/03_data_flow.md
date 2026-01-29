@@ -33,7 +33,7 @@ def format_result(ctx, number):
 ```
 
 ## 2. Configure Flow (`flow.yaml`)
-We need to define the dependencies and map the inputs.
+We need to define the dependencies and map the inputs. The default pattern is to connect tasks via `$ctx.params`.
 
 ```yaml
 version: 1
@@ -43,14 +43,21 @@ discovery:
     - "tasks.py"
 
 tasks:
+  generate_number:
+    outputs:
+      - "params.generated"
   multiply:
     inputs:
-      # Use the output of 'generate_number' as 'value' argument
-      value: "$node.generate_number.output"
+      # Prefer $ctx.params to connect tasks
+      value: "$ctx.params.generated"
+    outputs:
+      - "params.multiplied"
   format_result:
     inputs:
-      # Use the output of 'multiply' as 'number' argument
-      number: "$node.multiply.output"
+      # Prefer $ctx.params to connect tasks
+      number: "$ctx.params.multiplied"
+    outputs:
+      - "params.formatted"
 
 flows:
   main:
@@ -59,7 +66,8 @@ flows:
 ```
 
 - `>>`: Defines the execution order. `generate_number` runs first, then `multiply`, then `format_result`.
-- `$node.<TaskName>.output`: A selector to access the return value of a previous task.
+- `$ctx.params.<key>`: The standard way to connect tasks via shared parameters.
+- Use `$node.<TaskName>.output` when you need to avoid overwriting shared params or require an explicit upstream output.
 
 ## 3. Run It
 ```bash

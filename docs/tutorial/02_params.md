@@ -70,6 +70,7 @@ This makes your workflows reusable for different contexts without changing the c
 You can also access context parameters and environment variables directly in your `flow.yaml` using selectors.
 
 ### Context Parameters (`$ctx.params`)
+Pyoco recommends using `$ctx.params` as the default way to connect tasks so you avoid accidental overrides.
 Instead of relying on auto-injection, you can explicitly map parameters:
 
 ```yaml
@@ -87,6 +88,16 @@ tasks:
   api_call:
     inputs:
       api_key: "$env.API_KEY"
+```
+
+### When to Use `$node.<task>.output`
+If multiple tasks would overwrite the same `$ctx.params` key or you need a specific upstream output, use `$node.<task>.output` explicitly:
+
+```yaml
+tasks:
+  summarize:
+    inputs:
+      data: "$node.build_report.output"
 ```
 
 [Next: Data Flow & Dependencies](03_data_flow.md)

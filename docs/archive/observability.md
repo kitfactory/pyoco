@@ -37,7 +37,7 @@ scrape_configs:
 
 ## 2. Grafana ダッシュボード
 
-`docs/grafana_pyoco_cute.json` は以下の 3 パネルを含むスターターテンプレートです。
+`docs/archive/grafana_pyoco_cute.json` は以下の 3 パネルを含むスターターテンプレートです。
 
 1. Runs in progress（Stat）
 2. Run completions (last 5m)（Time series）
@@ -46,7 +46,7 @@ scrape_configs:
 ### 2.1 インポート手順
 
 1. Grafana の `Dashboards > Import` を開く。
-2. 「Upload dashboard JSON file」で `docs/grafana_pyoco_cute.json` を選択。
+2. 「Upload dashboard JSON file」で `docs/archive/grafana_pyoco_cute.json` を選択。
 3. Prometheus データソースを `PyocoProm`（既定名）もしくは任意の名前にリマップ。
 4. 保存するだけで利用可能です。
 

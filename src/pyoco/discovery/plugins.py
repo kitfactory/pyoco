@@ -3,7 +3,8 @@ from __future__ import annotations
 from importlib import metadata as importlib_metadata
 from typing import Any, Callable, Dict, List, Optional, Type
 
-from ..core.models import Task
+from ..core.models import Task, TaskInfo, TaskIO
+from ..core.exceptions import MissingTaskMetadataError
 from ..dsl.syntax import TaskWrapper
 
 
@@ -41,6 +42,45 @@ class PluginRegistry:
         self.registered_names: List[str] = []
         self.records: List[Dict[str, Any]] = []
         self.warnings: List[str] = []
+        self.task_infos: Dict[str, TaskInfo] = {}
+
+    def task_info(
+        self,
+        *,
+        name: Optional[str] = None,
+        summary: Optional[str] = None,
+        inputs: Optional[List[Any]] = None,
+        outputs: Optional[List[Any]] = None,
+        tags: Optional[List[str]] = None,
+        origin: Optional[str] = None,
+    ) -> None:
+        missing = []
+        if not name:
+            missing.append("name")
+        if not summary:
+            missing.append("summary")
+        if inputs is None:
+            missing.append("inputs")
+        if outputs is None:
+            missing.append("outputs")
+        if missing:
+            raise MissingTaskMetadataError(name or "<unknown>", missing)
+
+        if not isinstance(inputs, list) or not isinstance(outputs, list):
+            raise MissingTaskMetadataError(name, ["inputs", "outputs"])
+        task_inputs = self._normalize_taskio_list(inputs, "inputs", name)
+        task_outputs = self._normalize_taskio_list(outputs, "outputs", name)
+        info = TaskInfo(
+            name=name,
+            summary=summary,
+            inputs=task_inputs,
+            outputs=task_outputs,
+            origin=origin or self.provider_name,
+            tags=tags or [],
+        )
+        self.task_infos[name] = info
+        if hasattr(self.loader, "_register_task_info"):
+            self.loader._register_task_info(info)
 
     def task(
         self,
@@ -146,3 +186,25 @@ class PluginRegistry:
         if task.__class__ is Task and origin not in ("callable", "wrapper"):
             warnings.append("plain Task instance detected; subclass Task for metadata support")
         return warnings
+
+    def _normalize_taskio_list(self, items: List[Any], label: str, task_name: str) -> List[TaskIO]:
+        normalized: List[TaskIO] = []
+        for idx, item in enumerate(items):
+            if isinstance(item, TaskIO):
+                normalized.append(item)
+                continue
+            if isinstance(item, dict):
+                taskio = TaskIO.from_dict(item)
+                missing = []
+                if not taskio.name:
+                    missing.append(f"{label}[{idx}].name")
+                if not taskio.type:
+                    missing.append(f"{label}[{idx}].type")
+                if taskio.required is None:
+                    missing.append(f"{label}[{idx}].required")
+                if missing:
+                    raise MissingTaskMetadataError(task_name, missing)
+                normalized.append(taskio)
+                continue
+            raise MissingTaskMetadataError(task_name, [f"{label}[{idx}]"])
+        return normalized

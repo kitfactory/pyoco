@@ -238,11 +238,10 @@ class Flow:
             # So `flow >> (A | B)` just adds A and B.
             # Then `(A | B) >> C` is handled by Branch.
             pass
-        
-        # Update tail
+
         if new_tasks:
             self._tail = set(new_tasks)
-            
+
         return self
 
     def add_task(self, task: Task):
@@ -284,3 +283,45 @@ class Flow:
             tail_task.dependents.add(task)
             task.dependencies.add(tail_task)
         self._tail = {task}
+
+
+@dataclass
+class TaskIO:
+    name: str
+    type: str
+    required: bool
+    constraints: Optional[List[str]] = None
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "TaskIO":
+        return cls(
+            name=data.get("name"),
+            type=data.get("type"),
+            required=data.get("required"),
+            constraints=data.get("constraints"),
+        )
+
+
+@dataclass
+class TaskInfo:
+    name: str
+    summary: str
+    inputs: List[TaskIO]
+    outputs: List[TaskIO]
+    origin: Optional[str] = None
+    tags: Optional[List[str]] = None
+
+
+@dataclass
+class SupportFilters:
+    name: Optional[List[str]] = None
+    origin: Optional[List[str]] = None
+    tag: Optional[List[str]] = None
+
+
+@dataclass
+class SupportInfo:
+    kind: str
+    format: str
+    content: str
+    filters: SupportFilters

@@ -33,7 +33,7 @@ def format_result(ctx, number):
 ```
 
 ## 2. フローの設定 (`flow.yaml`)
-依存関係を定義し、入力をマッピングする必要があります。
+依存関係を定義し、入力をマッピングする必要があります。基本は `$ctx.params` でつなぎます。
 
 ```yaml
 version: 1
@@ -43,14 +43,21 @@ discovery:
     - "tasks.py"
 
 tasks:
+  generate_number:
+    outputs:
+      - "params.generated"
   multiply:
     inputs:
-      # 'generate_number' の出力を 'value' 引数として使用
-      value: "$node.generate_number.output"
+      # $ctx.params で連携するのが標準
+      value: "$ctx.params.generated"
+    outputs:
+      - "params.multiplied"
   format_result:
     inputs:
-      # 'multiply' の出力を 'number' 引数として使用
-      number: "$node.multiply.output"
+      # $ctx.params で連携するのが標準
+      number: "$ctx.params.multiplied"
+    outputs:
+      - "params.formatted"
 
 flows:
   main:
@@ -59,7 +66,8 @@ flows:
 ```
 
 - `>>`: 実行順序を定義します。`generate_number` が最初に実行され、次に `multiply`、最後に `format_result` が実行されます。
-- `$node.<TaskName>.output`: 前のタスクの戻り値にアクセスするためのセレクタです。
+- `$ctx.params.<key>`: 共有パラメータでタスクをつなぐ標準的な方法です。
+- `$node.<TaskName>.output`: 共有パラメータの上書き回避や、上流出力を明示したい場合に使います。
 
 ## 3. 実行
 ```bash

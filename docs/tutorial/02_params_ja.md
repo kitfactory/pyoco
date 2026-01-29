@@ -70,7 +70,7 @@ Welcome, Alice!
 セレクタを使用して、`flow.yaml` 内でコンテキストパラメータや環境変数に直接アクセスすることもできます。
 
 ### コンテキストパラメータ (`$ctx.params`)
-自動注入に頼る代わりに、パラメータを明示的にマッピングできます。
+$ctx.params を標準にすると、意図しない上書きを避けられます。自動注入に頼る代わりに、パラメータを明示的にマッピングできます。
 
 ```yaml
 tasks:
@@ -87,6 +87,16 @@ tasks:
   api_call:
     inputs:
       api_key: "$env.API_KEY"
+```
+
+### `$node.<task>.output` を使う場面
+同じ `$ctx.params` キーが上書きされる場合や、上流出力を明示したい場合は `$node.<task>.output` を使います。
+
+```yaml
+tasks:
+  summarize:
+    inputs:
+      data: "$node.build_report.output"
 ```
 
 [次へ: データフローと依存関係](03_data_flow_ja.md)

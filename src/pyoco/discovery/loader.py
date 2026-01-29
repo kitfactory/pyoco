@@ -11,6 +11,7 @@ class TaskLoader:
         self.config = config
         self.strict = strict
         self.tasks: Dict[str, Task] = {}
+        self.task_infos: Dict[str, Any] = {}
         self._explicit_tasks: Set[str] = set()
         self.plugin_reports: List[Dict[str, Any]] = []
 
@@ -58,6 +59,18 @@ class TaskLoader:
                     task.outputs.extend(conf.outputs)
 
         self.tasks[name] = task
+
+    def _register_task_info(self, info: Any):
+        name = getattr(info, "name", None)
+        if not name:
+            return
+        if name in self.task_infos:
+            msg = f"Task metadata '{name}' already defined."
+            if self.strict:
+                raise ValueError(f"{msg} (Strict mode enabled)")
+            else:
+                print(f"Warning: {msg} Overwriting.")
+        self.task_infos[name] = info
 
     def _load_package(self, package_name: str):
         try:
@@ -118,6 +131,7 @@ class TaskLoader:
                     raise TypeError("Entry point must be callable")
                 hook(registry)
                 info["tasks"] = list(registry.records)
+                info["task_infos"] = list(registry.task_infos.values())
                 info["warnings"] = list(registry.warnings)
                 if not registry.records:
                     info["warnings"].append("no tasks registered")

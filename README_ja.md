@@ -121,13 +121,10 @@ export PYOCO_CUTE=0  # Cuteモードを無効化
 pyoco run --non-cute ...
 ```
 
-## 🔭 オブザーバビリティ (v0.5)
+## 🔭 オブザーバビリティ / サーバー（アーカイブ）
 
-- `/metrics` で Prometheus 指標（`pyoco_runs_total`, `pyoco_runs_in_progress`, `pyoco_task_duration_seconds`, `pyoco_run_duration_seconds`）を公開。Grafana/Prometheus からそのまま取得できます。
-- `/runs` に `status`/`flow`/`limit` フィルタと `task_summary` を追加、`/runs/{id}/logs?tail=100` で必要なログだけ取得。
-- `PYOCO_WEBHOOK_*` を設定すると Run の COMPLETED/FAILED を任意の Webhook に通知可能。
-- `docs/grafana_pyoco_cute.json` をインポートすると、ラベンダー×キャロットのキュートな3パネルダッシュボード（進行中カウンタ、完了トレンド、フロー別平均時間）がすぐに使えます。
-- 手順の詳細や Webhook/Prometheus 設定例は [docs/observability.md](docs/observability.md) を参照してください。
+観測・サーバー関連のドキュメントはアーカイブ済みで、現在の要件対象外です。  
+`docs/archive/observability.md` と `docs/archive/roadmap.md` を参照してください。
 
 ## 🧩 プラグイン
 
@@ -138,7 +135,7 @@ pyoco run --non-cute ...
 ## 📚 ドキュメント
 
 - [チュートリアル](docs/tutorial/index.md)
-- [ロードマップ](docs/roadmap.md)
+- [ロードマップ（アーカイブ）](docs/archive/roadmap.md)
 
 ## 💖 コントリビューション
 

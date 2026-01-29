@@ -121,13 +121,10 @@ Or via CLI flag:
 pyoco run --non-cute ...
 ```
 
-## 🔭 Observability Bridge (v0.5)
+## 🔭 Observability / Server (Archived)
 
-- `/metrics` exposes Prometheus counters (`pyoco_runs_total`, `pyoco_runs_in_progress`) and histograms (`pyoco_task_duration_seconds`, `pyoco_run_duration_seconds`). Point Grafana/Prometheus at it to watch pipelines without opening sockets.
-- `/runs` now accepts `status`, `flow`, `limit` query params; `/runs/{id}/logs?tail=100` fetches only the latest snippets for dashboards.
-- Webhook notifications fire when runs COMPLETE/FAIL—configure via `PYOCO_WEBHOOK_*` env vars and forward to Slack or your alerting stack.
-- Import `docs/grafana_pyoco_cute.json` for a lavender/orange starter dashboard (3 panels: in-progress count, completion trend, per-flow latency).
-- 詳細な手順は [docs/observability.md](docs/observability.md) を参照してください。
+Observability and server-related docs are archived and out of scope for the current requirements.  
+See `docs/archive/observability.md` and `docs/archive/roadmap.md`.
 
 ## 🧩 Plug-ins
 
@@ -138,7 +135,7 @@ Need to share domain-specific tasks? Publish an entry point under `pyoco.tasks` 
 ## 📚 Documentation
 
 - [Tutorials](docs/tutorial/index.md)
-- [Roadmap](docs/roadmap.md)
+- [Roadmap (Archived)](docs/archive/roadmap.md)
 
 ## 💖 Contributing
 

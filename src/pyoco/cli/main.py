@@ -11,6 +11,15 @@ from ..core.models import Flow
 from ..core.engine import Engine
 from ..trace.console import ConsoleTraceBackend
 from ..client import Client
+from ..support.service import SupportInfoService
+from ..core.exceptions import (
+    SupportInfoError,
+    InvalidFormatError,
+    TaskNotFoundError,
+    InvalidFilterError,
+    OutputWriteError,
+    MissingTaskMetadataError,
+)
 
 def main():
     parser = argparse.ArgumentParser(description="Pyoco Workflow Engine")
@@ -91,6 +100,30 @@ def main():
     plugins_lint = plugins_sub.add_parser("lint", help="Validate plug-ins for upcoming requirements")
     plugins_lint.add_argument("--json", action="store_true", help="Output JSON payload")
 
+    support_parser = subparsers.add_parser("support", help="Generate support info")
+    support_subparsers = support_parser.add_subparsers(dest="support_command")
+
+    support_tasks = support_subparsers.add_parser("tasks", help="List tasks for LLM support")
+    support_tasks.add_argument("--config", required=True, help="Path to flow.yaml")
+    support_tasks.add_argument("--format", default="prompt", choices=["prompt", "json", "md"])
+    support_tasks.add_argument("--output", help="Write output to file")
+    support_tasks.add_argument("--name", action="append", help="Filter by task name (repeatable)")
+    support_tasks.add_argument("--origin", action="append", help="Filter by origin (repeatable)")
+    support_tasks.add_argument("--tag", action="append", help="Filter by tag (repeatable)")
+
+    support_task = support_subparsers.add_parser("task", help="Show task detail for LLM support")
+    support_task.add_argument("--config", required=True, help="Path to flow.yaml")
+    support_task.add_argument("--name", required=True, help="Task name")
+    support_task.add_argument("--format", default="prompt", choices=["prompt", "json", "md"])
+    support_task.add_argument("--output", help="Write output to file")
+    support_task.add_argument("--origin", action="append", help="Filter by origin (repeatable)")
+    support_task.add_argument("--tag", action="append", help="Filter by tag (repeatable)")
+
+    support_guide = support_subparsers.add_parser("guide", help="Show flow.yaml guide for LLM support")
+    support_guide.add_argument("--config", required=True, help="Path to flow.yaml")
+    support_guide.add_argument("--format", default="prompt", choices=["prompt", "json", "md"])
+    support_guide.add_argument("--output", help="Write output to file")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -168,6 +201,26 @@ def main():
                 sys.exit(1)
         else:
             plugins_parser.print_help()
+        return
+
+    if args.command == "support":
+        if not args.support_command:
+            support_parser.print_help()
+            sys.exit(1)
+        filters = _build_support_filters(args)
+        try:
+            content = SupportInfoService().build(
+                kind=args.support_command,
+                config_path=args.config,
+                format=args.format,
+                filters=filters or None,
+                output_path=args.output,
+            )
+        except SupportInfoError as exc:
+            _print_support_error(exc)
+            sys.exit(1)
+        if not args.output:
+            print(content)
         return
 
     if args.command == "server":
@@ -412,6 +465,38 @@ def _collect_plugin_reports():
     loader = TaskLoader(dummy)
     loader.load()
     return loader.plugin_reports
+
+
+def _build_support_filters(args):
+    filters = {}
+    if getattr(args, "name", None):
+        value = args.name
+        filters["name"] = value if isinstance(value, list) else [value]
+    if getattr(args, "origin", None):
+        filters["origin"] = args.origin
+    if getattr(args, "tag", None):
+        filters["tag"] = args.tag
+    return filters
+
+
+def _print_support_error(exc: SupportInfoError) -> None:
+    if isinstance(exc, InvalidFormatError):
+        print(f"Invalid format: {exc.format}")
+        return
+    if isinstance(exc, TaskNotFoundError):
+        print(f"Task not found: {exc.name}")
+        return
+    if isinstance(exc, OutputWriteError):
+        print(f"Failed to write output: {exc.path}")
+        return
+    if isinstance(exc, InvalidFilterError):
+        print(f"Invalid filter: {exc.filter_value}")
+        return
+    if isinstance(exc, MissingTaskMetadataError):
+        fields = ",".join(exc.fields)
+        print(f"Missing task metadata: {exc.name} fields={fields}")
+        return
+    print(f"Error: {exc}")
 
 
 def _stream_logs(client, args):
