@@ -77,10 +77,9 @@ class Worker:
         
         print(f"🚀 Received job: {run_id} (Flow: {flow_name})")
         
-        # Find flow
-        flow_def = self.config.flows.get(flow_name)
+        flow_def = self.config.flow
         if not flow_def:
-            print(f"❌ Flow '{flow_name}' not found in local config.")
+            print("❌ Flow not found in local config. Add 'flow:' with 'graph:' to your flow.yaml.")
             return
 
         # Build Flow object using exec (same as main.py)

@@ -33,20 +33,18 @@ def hello(ctx):
 ```yaml
 version: 1
 
-# タスクの場所を Pyoco に教える
-discovery:
-  glob_modules:
-    - "tasks.py"
+tasks:
+  hello:
+    callable: "tasks:hello"
 
 # フローの定義
-flows:
-  main:
-    graph: |
-      hello
+flow:
+  graph: |
+    hello
 ```
 
-- `discovery`: Pythonファイルを指定します。
-- `flows`: `main` という名前のフローを定義しています。
+- `tasks`: タスク名と Python callable を対応付けます。
+- `flow`: 単一フローを定義します。
 - `graph`: 実行するタスクを記述します。ここではシンプルに `hello` だけです。
 
 ## 4. 実行！

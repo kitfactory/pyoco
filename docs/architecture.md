@@ -260,7 +260,7 @@
 
 | 戻り値 | 型 | 主要フィールド |
 |---|---|---|
-| config | PyocoConfig | flows, tasks, discovery, runtime |
+| config | PyocoConfig | flow, tasks, runtime |
 
 | 例外 | 発生場所 | 発生原因 |
 |---|---|---|
@@ -382,10 +382,9 @@
 | TaskInfo | name: str, summary: str, inputs: list<TaskIO>, outputs: list<TaskIO>, origin: str|None, tags: list<str>|None | タスクメタ情報（必須: name/summary/inputs/outputs） |
 | SupportFilters | name: list<str>|None, origin: list<str>|None, tag: list<str>|None | タスク絞り込み |
 | SupportInfo | kind: str, format: str, content: str, filters: SupportFilters | 支援情報出力 |
-| PyocoConfig | version: int, flows: dict<str, FlowConfig>, tasks: dict<str, TaskConfig> | 設定全体 |
-| FlowConfig | graph: str, defaults: dict<str, Any> | フロー設定 |
+| PyocoConfig | version: int, flow: FlowConfig|None, tasks: dict<str, TaskConfig> | 設定全体 |
+| FlowConfig | graph: str, defaults: dict<str, Any> | フロー設定（単一） |
 | TaskConfig | callable: str|None, inputs: dict<str, Any>, outputs: list<str> | タスク設定 |
-| DiscoveryConfig | entry_points: list<str>, packages: list<str>, glob_modules: list<str> | タスク探索 |
 | RuntimeConfig | expose_env: list<str> | env公開設定 |
 
 #4.主要フロー設計（成功/失敗）
@@ -411,7 +410,7 @@
 | 項目 | 場所 | キー | 既定値 |
 |---|---|---|---|
 | フロー設定ファイル | CLI | --config | なし（必須） |
-| フロー名 | CLI | --flow | main |
+| フロー名 | CLI | - | main（固定） |
 | パラメータ上書き | CLI | --param | なし |
 | トレーススタイル | ENV/CLI | PYOCO_CUTE / --cute / --non-cute | cute |
 | artifact_dir | Context初期化 | artifact_dir | ./artifacts |
@@ -498,8 +497,8 @@ CLI -> PyocoConfig, TaskLoader, Engine, SupportInfoService
 - ローカル環境で更新（破壊的変更は最小化）
 
 #13.CLI：コマンド体系／引数／出力／exit code
-- run: フロー実行（--config 必須, --flow, --param, --cute/--non-cute）
-- check: フロー検証（--config 必須, --flow, --dry-run, --json）
+- run: フロー実行（--config 必須, --param, --cute/--non-cute）
+- check: フロー検証（--config 必須, --dry-run, --json）
 - list-tasks: 利用可能タスク一覧（--config 必須）
 - plugins: プラグイン一覧/検証（list, lint, --json）
 - support tasks: タスク一覧の支援情報（--config 必須, --format, --output, --name/--origin/--tag）

@@ -20,12 +20,7 @@ def _make_entry_point(name, hook):
 def _write_min_config(path):
     path.write_text(
         "version: 1\n"
-        "flows: {}\n"
         "tasks: {}\n"
-        "discovery:\n"
-        "  entry_points: []\n"
-        "  packages: []\n"
-        "  glob_modules: []\n"
     )
 
 

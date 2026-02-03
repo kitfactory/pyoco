@@ -38,31 +38,29 @@ def format_result(ctx, number):
 ```yaml
 version: 1
 
-discovery:
-  glob_modules:
-    - "tasks.py"
-
 tasks:
   generate_number:
+    callable: "tasks:generate_number"
     outputs:
       - "params.generated"
   multiply:
+    callable: "tasks:multiply"
     inputs:
       # $ctx.params で連携するのが標準
       value: "$ctx.params.generated"
     outputs:
       - "params.multiplied"
   format_result:
+    callable: "tasks:format_result"
     inputs:
       # $ctx.params で連携するのが標準
       number: "$ctx.params.multiplied"
     outputs:
       - "params.formatted"
 
-flows:
-  main:
-    graph: |
-      generate_number >> multiply >> format_result
+flow:
+  graph: |
+    generate_number >> multiply >> format_result
 ```
 
 - `>>`: 実行順序を定義します。`generate_number` が最初に実行され、次に `multiply`、最後に `format_result` が実行されます。

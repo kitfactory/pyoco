@@ -38,31 +38,29 @@ We need to define the dependencies and map the inputs. The default pattern is to
 ```yaml
 version: 1
 
-discovery:
-  glob_modules:
-    - "tasks.py"
-
 tasks:
   generate_number:
+    callable: "tasks:generate_number"
     outputs:
       - "params.generated"
   multiply:
+    callable: "tasks:multiply"
     inputs:
       # Prefer $ctx.params to connect tasks
       value: "$ctx.params.generated"
     outputs:
       - "params.multiplied"
   format_result:
+    callable: "tasks:format_result"
     inputs:
       # Prefer $ctx.params to connect tasks
       number: "$ctx.params.multiplied"
     outputs:
       - "params.formatted"
 
-flows:
-  main:
-    graph: |
-      generate_number >> multiply >> format_result
+flow:
+  graph: |
+    generate_number >> multiply >> format_result
 ```
 
 - `>>`: Defines the execution order. `generate_number` runs first, then `multiply`, then `format_result`.

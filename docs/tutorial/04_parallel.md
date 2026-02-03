@@ -35,13 +35,18 @@ def breakfast(ctx):
 ### `flow.yaml`
 ```yaml
 version: 1
-discovery:
-  glob_modules: ["tasks.py"]
 
-flows:
-  morning:
-    graph: |
-      (brush_teeth & wash_face) >> breakfast
+tasks:
+  brush_teeth:
+    callable: "tasks:brush_teeth"
+  wash_face:
+    callable: "tasks:wash_face"
+  breakfast:
+    callable: "tasks:breakfast"
+
+flow:
+  graph: |
+    (brush_teeth & wash_face) >> breakfast
 ```
 
 - `(A & B)`: Defines a parallel group. Both tasks start simultaneously.
@@ -51,10 +56,9 @@ flows:
 Sometimes you only need one of the previous tasks to succeed to proceed.
 
 ```yaml
-flows:
-  flexible_morning:
-    graph: |
-      (brush_teeth | wash_face) >> breakfast
+flow:
+  graph: |
+    (brush_teeth | wash_face) >> breakfast
 ```
 
 - `(A | B)`: Defines a branch.
@@ -63,7 +67,7 @@ flows:
 ## 3. Run It
 Run the parallel flow:
 ```bash
-pyoco run --config flow.yaml --flow morning --cute
+pyoco run --config flow.yaml --cute
 ```
 
 You will see the tasks running together in the cute trace output!

@@ -50,11 +50,10 @@ def long_running_job(ctx):
 `flow.yaml` を作成します：
 
 ```yaml
-flows:
-  control_demo:
-    graph: |
-      long_running_job
-    defaults: {}
+flow:
+  graph: |
+    long_running_job
+  defaults: {}
 
 tasks:
   long_running_job:
@@ -66,13 +65,13 @@ tasks:
 このフローを実行し、途中で `Ctrl+C` を押してみましょう。
 
 ```bash
-pyoco run --config flow.yaml --flow control_demo
+pyoco run --config flow.yaml
 ```
 
 **出力例:**
 
 ```
-🐇 pyoco > start flow=control_demo run_id=...
+🐇 pyoco > start flow=main run_id=...
 🏃 start node=long_running_job
 🏃 長い処理を開始します...
 ⏳ 処理中... 1/10

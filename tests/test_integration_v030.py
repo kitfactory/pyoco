@@ -38,7 +38,6 @@ def socketless_server():
         "pyoco.server.api:app",
         reset_hook="pyoco.socketless_reset:reset_store",
         base_url=SOCKETLESS_BASE_URL,
-        debug=True,
     )
     yield
     cleanup()

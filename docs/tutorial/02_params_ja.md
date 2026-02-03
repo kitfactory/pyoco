@@ -25,17 +25,16 @@ def greet(ctx, name, greeting="Hello"):
 ```yaml
 version: 1
 
-discovery:
-  glob_modules:
-    - "tasks.py"
+tasks:
+  greet:
+    callable: "tasks:greet"
 
-flows:
-  main:
-    defaults:
-      name: "User"
-      greeting: "Hi"
-    graph: |
-      greet
+flow:
+  defaults:
+    name: "User"
+    greeting: "Hi"
+  graph: |
+    greet
 ```
 
 - `defaults`: パラメータのグローバルなデフォルト値を設定します。

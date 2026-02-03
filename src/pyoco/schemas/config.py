@@ -14,44 +14,58 @@ class FlowConfig:
     defaults: Dict[str, Any] = field(default_factory=dict)
 
 @dataclass
-class DiscoveryConfig:
-    entry_points: List[str] = field(default_factory=list)
-    packages: List[str] = field(default_factory=list)
-    glob_modules: List[str] = field(default_factory=list)
-
-@dataclass
 class RuntimeConfig:
     expose_env: List[str] = field(default_factory=list)
 
 @dataclass
 class PyocoConfig:
     version: int
-    flows: Dict[str, FlowConfig]
+    flow: Optional[FlowConfig]
     tasks: Dict[str, TaskConfig]
-    discovery: DiscoveryConfig = field(default_factory=DiscoveryConfig)
     runtime: RuntimeConfig = field(default_factory=RuntimeConfig)
 
     @classmethod
     def from_yaml(cls, path: str) -> 'PyocoConfig':
         with open(path, 'r') as f:
-            data = yaml.safe_load(f)
+            data = yaml.safe_load(f) or {}
         
         # Simple manual parsing/validation for MVP
         # In a real app, use pydantic or similar
-        
-        flows = {k: FlowConfig(**v) for k, v in data.get('flows', {}).items()}
+
+        if "flows" in data:
+            raise ValueError(
+                "Unsupported config key 'flows'.\n"
+                "Pyoco config supports a single workflow per file.\n"
+                "Use 'flow:' instead.\n"
+                "Example:\n"
+                "  flow:\n"
+                "    graph: |\n"
+                "      task_a >> task_b\n"
+            )
+
+        flow_data = data.get("flow")
+        flow = None
+        if flow_data is not None:
+            if not isinstance(flow_data, dict):
+                raise ValueError("Invalid config: 'flow' must be a mapping/object.")
+            flow = FlowConfig(**flow_data)
+
         tasks = {k: TaskConfig(**v) for k, v in data.get('tasks', {}).items()}
-        
-        disc_data = data.get('discovery', {})
-        discovery = DiscoveryConfig(**disc_data)
-        
+
+        if "discovery" in data:
+            raise ValueError(
+                "Unsupported config key 'discovery'.\n"
+                "For safety, discovery scope is not configurable in flow.yaml.\n"
+                "Remove 'discovery' and use PYOCO_DISCOVERY_MODULES to import extra modules, "
+                "or define tasks explicitly via tasks.<name>.callable."
+            )
+
         run_data = data.get('runtime', {})
         runtime = RuntimeConfig(**run_data)
         
         return cls(
             version=data.get('version', 1),
-            flows=flows,
+            flow=flow,
             tasks=tasks,
-            discovery=discovery,
             runtime=runtime
         )

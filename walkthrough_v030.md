@@ -25,7 +25,7 @@ Submit flows to the server instead of running locally.
 
 **Submit a run:**
 ```bash
-pyoco run --config flow.yaml --flow my_flow --server http://localhost:8000
+pyoco run --config flow.yaml --server http://localhost:8000
 # 🚀 Flow submitted! Run ID: ...
 ```
 

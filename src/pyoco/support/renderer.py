@@ -123,25 +123,21 @@ class SupportInfoRenderer:
     def _guide_payload(self) -> Dict[str, str]:
         template = (
             "version: 1\n"
-            "flows:\n"
-            "  main:\n"
-            "    graph: \"task_a >> task_b\"\n"
-            "    defaults:\n"
-            "      seed: \"bar\"\n"
+            "flow:\n"
+            "  graph: \"task_a >> task_b\"\n"
+            "  defaults:\n"
+            "    seed: \"bar\"\n"
             "tasks:\n"
             "  task_a:\n"
             "    callable: \"pkg.module:task_a\"\n"
             "    inputs:\n"
             "      x: \"$ctx.params.seed\"\n"
-    "    outputs:\n"
+            "    outputs:\n"
             "      - \"params.shared\"\n"
             "  task_b:\n"
             "    callable: \"pkg.module:task_b\"\n"
             "    inputs:\n"
             "      input_a: \"$ctx.params.shared\"\n"
-            "discovery:\n"
-            "  entry_points:\n"
-            "    - \"my_plugin\"\n"
         )
         graph = (
             "- Use >> to define dependencies: A >> B means B depends on A.\n"
@@ -152,6 +148,8 @@ class SupportInfoRenderer:
             "- Prefer $ctx.params.<key> to connect tasks via shared params.\n"
             "- If values would be overwritten or you need an explicit upstream output, use $node.<task_name>.output.\n"
             "- Use $env.<KEY> to reference allowed environment variables.\n"
+            "- Task discovery is not configured in flow.yaml. Use explicit tasks.callable, entry-point plugins (group 'pyoco.tasks'),\n"
+            "  or set PYOCO_DISCOVERY_MODULES to import extra modules. The 'discovery' config key is not supported.\n"
         )
         return {"template": template, "graph_syntax": graph, "input_refs": inputs}
 

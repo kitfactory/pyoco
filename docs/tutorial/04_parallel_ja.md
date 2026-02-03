@@ -35,13 +35,18 @@ def breakfast(ctx):
 ### `flow.yaml`
 ```yaml
 version: 1
-discovery:
-  glob_modules: ["tasks.py"]
 
-flows:
-  morning:
-    graph: |
-      (brush_teeth & wash_face) >> breakfast
+tasks:
+  brush_teeth:
+    callable: "tasks:brush_teeth"
+  wash_face:
+    callable: "tasks:wash_face"
+  breakfast:
+    callable: "tasks:breakfast"
+
+flow:
+  graph: |
+    (brush_teeth & wash_face) >> breakfast
 ```
 
 - `(A & B)`: 並列グループを定義します。両方のタスクが同時に開始されます。
@@ -51,10 +56,9 @@ flows:
 場合によっては、前のタスクのいずれか1つが成功すれば次に進みたいことがあります。
 
 ```yaml
-flows:
-  flexible_morning:
-    graph: |
-      (brush_teeth | wash_face) >> breakfast
+flow:
+  graph: |
+    (brush_teeth | wash_face) >> breakfast
 ```
 
 - `(A | B)`: 分岐を定義します。
@@ -63,7 +67,7 @@ flows:
 ## 3. 実行
 並列フローを実行します。
 ```bash
-pyoco run --config flow.yaml --flow morning --cute
+pyoco run --config flow.yaml --cute
 ```
 
 かわいいトレース出力で、タスクが一緒に実行されているのが確認できるはずです！

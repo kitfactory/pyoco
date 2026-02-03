@@ -41,9 +41,6 @@ class MultiplyTask(BaseTask):
 ```yaml
 version: 1
 
-discovery:
-  glob_modules: ["examples/custom_task_demo.py"]
-
 tasks:
   multiply:
     callable: "examples.custom_task_demo:MultiplyTask.run"
@@ -53,10 +50,9 @@ tasks:
     outputs:
       - "scratch.product"
 
-flows:
-  main:
-    graph: |
-      multiply
+flow:
+  graph: |
+    multiply
 ```
 
 フローが実行されると、`MultiplyTask.run` の戻り値が `ctx.scratch.product` に保存され、下流のタスクからセレクタ `$ctx.scratch.product` を介してアクセスできるようになります。

@@ -21,19 +21,17 @@ def calculate_metrics(ctx):
 ### `flow.yaml`
 ```yaml
 version: 1
-discovery:
-  glob_modules: ["tasks.py"]
 
 tasks:
   calculate_metrics:
+    callable: "tasks:calculate_metrics"
     outputs:
       # 戻り値を ctx.scratch.metrics に保存
       - "scratch.metrics"
 
-flows:
-  main:
-    graph: |
-      calculate_metrics
+flow:
+  graph: |
+    calculate_metrics
 ```
 
 後続のタスクは `$ctx.scratch.metrics` を介してこのデータにアクセスできます。

@@ -38,9 +38,6 @@ Add the task to your ``flow.yaml``:
 ```yaml
 version: 1
 
-discovery:
-  glob_modules: ["examples/custom_task_demo.py"]
-
 tasks:
   multiply:
     callable: "examples.custom_task_demo:MultiplyTask.run"
@@ -50,10 +47,9 @@ tasks:
     outputs:
       - "scratch.product"
 
-flows:
-  main:
-    graph: |
-      multiply
+flow:
+  graph: |
+    multiply
 ```
 
 When the flow runs, the return value of ``MultiplyTask.run`` will be stored in

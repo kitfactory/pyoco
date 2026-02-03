@@ -1,7 +1,7 @@
 # 8. Control & Observability
 
 In this chapter, we will learn about the "Execution Control" and "Observability" features introduced in v0.2.0.
-Pyoco issues a unique **Run ID** for each execution and provides the ability to safely **cancel** running flows.
+Pyoco issues a unique **Run ID** for each execution and provides the ability to safely **cancel** running workflows.
 
 ## Goals
 
@@ -50,11 +50,10 @@ def long_running_job(ctx):
 Create `flow.yaml`:
 
 ```yaml
-flows:
-  control_demo:
-    graph: |
-      long_running_job
-    defaults: {}
+flow:
+  graph: |
+    long_running_job
+  defaults: {}
 
 tasks:
   long_running_job:
@@ -66,13 +65,13 @@ tasks:
 Run this flow and press `Ctrl+C` halfway through.
 
 ```bash
-pyoco run --config flow.yaml --flow control_demo
+pyoco run --config flow.yaml
 ```
 
 **Example Output:**
 
 ```
-🐇 pyoco > start flow=control_demo run_id=...
+🐇 pyoco > start flow=main run_id=...
 🏃 start node=long_running_job
 🏃 Starting long job...
 ⏳ Processing... 1/10
@@ -81,7 +80,7 @@ pyoco run --config flow.yaml --flow control_demo
 🛑 Ctrl+C detected. Cancelling active runs...
 🛑 Cancellation detected! Cleaning up and exiting.
 ✅ done node=long_running_job (2015.32 ms)
-🥕 done flow=control_demo
+🥕 done flow=main
 ```
 
 ### Explanation

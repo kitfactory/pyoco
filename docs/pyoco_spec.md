@@ -50,17 +50,11 @@
 ## 6) 設定ファイル（YAML; MVP）
 ```yaml
 version: 1
-flows:
-  main:
-    graph: |
-      A >> (B & C)
-    defaults:
-      x: 1
-
-discovery:
-  entry_points: ["pyoco.tasks"]
-  packages: ["myproject.tasks"]
-  glob_modules: ["jobs.*"]
+flow:
+  graph: |
+    A >> (B & C)
+  defaults:
+    x: 1
 
 tasks:
   A:
@@ -85,11 +79,10 @@ runtime:
 ```
 
 ## 7) 自動検出（Discovery）
-- 二系統のタスク定義を検出:
-  - `@task` デコレータ付与関数（`__pyoco_task__=True`）
-  - `Task` 抽象クラス実装（`run(ctx, **kwargs)` 必須）
-- 取得元: `entry_points: "pyoco.tasks"`, `packages`, `modules`, `glob_modules`
-- 衝突ルール: 設定で明示指定があれば**明示勝ち**、なければ最初発見を採用（`--strict`でエラー化）
+- YAMLから探索範囲を変更できると安全性が下がるため、`discovery` キーは廃止（エラー）する。
+- 取得元は次の2系統に限定する:
+  - **entry points**: `importlib.metadata.entry_points(group="pyoco.tasks")` を自動ロード（サーバーに設置されたパッケージが追加したタスク）
+  - **環境変数**: `PYOCO_DISCOVERY_MODULES` に指定されたモジュール名を `import` して走査（非パッケージ相当のタスクを明示的に取り込む）
 
 ## 8) 検証（`pyoco check`）
 - callable import解決
@@ -118,10 +111,10 @@ if __name__ == "__main__":
   ※ 実務は `inputs` 明示推奨
 
 ## 10) CLI
-- 実行: `pyoco run --config flow.yaml --flow main --trace --cute`
+- 実行: `pyoco run --config flow.yaml --trace --cute`
 - 検証: `pyoco check --config flow.yaml`
 - 一覧: `pyoco list-tasks --config flow.yaml`
-- 直実行: `pyoco run path/to/flow.py --flow main`
+- 直実行: `pyoco run path/to/flow.py`
 
 ## 11) エラーハンドリング
 - タスク単位: `retries`, `timeout_sec`, `fail_policy`

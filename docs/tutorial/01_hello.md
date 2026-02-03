@@ -33,20 +33,18 @@ Open `flow.yaml` and define your workflow:
 ```yaml
 version: 1
 
-# Tell Pyoco where to find your tasks
-discovery:
-  glob_modules:
-    - "tasks.py"
+tasks:
+  hello:
+    callable: "tasks:hello"
 
 # Define the flow
-flows:
-  main:
-    graph: |
-      hello
+flow:
+  graph: |
+    hello
 ```
 
-- `discovery`: Points to your python file.
-- `flows`: Defines a flow named `main`.
+- `tasks`: Binds task names to Python callables.
+- `flow`: Defines a single flow.
 - `graph`: A simple string listing the tasks to run. Here, just `hello`.
 
 ## 4. Run It!

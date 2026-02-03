@@ -128,9 +128,17 @@ pyoco run --non-cute ...
 
 ## 🧩 プラグイン
 
-`pyoco.tasks` エントリポイントに Hook (`def register_tasks(registry): ...`) を公開すると、Pyoco が自動でタスクをロードします。v0.5.1 では **Task サブクラス優先** を推奨します（callable も動きますが警告対象）。`docs/plugins.md` に `PluginRegistry` の使い方、`pyproject.toml` 設定例、`pyoco plugins list` / `pyoco plugins lint` の説明を掲載しています。
+`pyoco.tasks` エントリポイントに Hook (`def register_tasks(registry): ...`) を公開すると、Pyoco が自動でタスクをロードします。**Task サブクラス優先** を推奨します（callable も動きますが警告対象）。`docs/plugins.md` に `PluginRegistry` の使い方、`pyproject.toml` 設定例、`pyoco plugins list` / `pyoco plugins lint` の説明を掲載しています。
 
 **大きなデータについて:** そのままコピーせずハンドルを渡すのが安全です。巨大なテンソル/画像は `ctx.artifacts` や `ctx.scratch` にパスやハンドルを置き、必要なタスクだけが実体化する形にします。遅延パイプライン（例: DataPipe）は、実際に回すタスク（例: 学習タスク）でパイプ構成をログに出し、上流で全量展開しないようにします。
+
+## 🧭 タスク探索（セキュリティ）
+
+探索範囲を `flow.yaml` から指定できると安全性が下がるため、Pyoco は `flow.yaml` の `discovery:` を受け付けません（指定するとエラーになります）。
+
+- **エントリポイント・プラグイン**: `importlib.metadata.entry_points(group="pyoco.tasks")` から自動ロード
+- **追加 import（運用側で制御）**: `PYOCO_DISCOVERY_MODULES`（カンマ/空白区切りのモジュール名）を設定。例: `PYOCO_DISCOVERY_MODULES=tasks,myapp.extra_tasks`
+- **明示タスク定義**: `flow.yaml` の `tasks.<name>.callable` を基本にする（詳細はチュートリアル参照）
 
 ## 📚 ドキュメント
 

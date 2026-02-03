@@ -1,15 +1,10 @@
 version: 1
-flows:
-  main:
-    graph: |
-      A >> (B & C)
-    defaults:
-      x: 10
 
-discovery:
-  packages: []
-  glob_modules: ["tasks"] # Load tasks.py from current dir
-
+flow:
+  graph: |
+    A >> (B & C)
+  defaults:
+    x: 10
 tasks:
   A:
     callable: tasks:A

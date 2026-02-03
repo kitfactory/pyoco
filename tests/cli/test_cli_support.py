@@ -2,12 +2,12 @@ import pytest
 from unittest.mock import patch
 
 from pyoco.cli.main import main
-from pyoco.schemas.config import PyocoConfig, DiscoveryConfig
+from pyoco.schemas.config import PyocoConfig
 from pyoco.core.exceptions import InvalidFormatError
 
 
 def _dummy_config():
-    return PyocoConfig(version=1, flows={}, tasks={}, discovery=DiscoveryConfig())
+    return PyocoConfig(version=1, flow=None, tasks={})
 
 
 def test_cli_support_tasks_outputs(capsys):

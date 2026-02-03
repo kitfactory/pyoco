@@ -7,11 +7,10 @@ import sys
 def test_cli_cancellation():
     # Create a slow flow
     flow_yaml = """
-flows:
-  slow_flow:
-    graph: |
-      slow_task
-    defaults: {}
+flow:
+  graph: |
+    slow_task
+  defaults: {}
 
 tasks:
   slow_task:
@@ -39,7 +38,7 @@ def slow_task(ctx):
         f.write(tasks_py)
 
     # Run CLI
-    cmd = [sys.executable, "src/pyoco/cli/entry.py", "run", "--config", "flow_cancel.yaml", "--flow", "slow_flow"]
+    cmd = [sys.executable, "src/pyoco/cli/entry.py", "run", "--config", "flow_cancel.yaml"]
     env = os.environ.copy()
     env["PYTHONPATH"] = "src:."
     

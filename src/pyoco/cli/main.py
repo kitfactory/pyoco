@@ -28,7 +28,6 @@ def main():
     # Run command
     run_parser = subparsers.add_parser("run", help="Run a workflow")
     run_parser.add_argument("--config", required=True, help="Path to flow.yaml")
-    run_parser.add_argument("--flow", default="main", help="Flow name to run")
     run_parser.add_argument("--trace", action="store_true", help="Enable tracing")
     run_parser.add_argument("--cute", action="store_true", default=True, help="Use cute trace style")
     run_parser.add_argument("--non-cute", action="store_false", dest="cute", help="Use plain trace style")
@@ -39,7 +38,6 @@ def main():
     # Check command
     check_parser = subparsers.add_parser("check", help="Verify a workflow")
     check_parser.add_argument("--config", required=True, help="Path to flow.yaml")
-    check_parser.add_argument("--flow", default="main", help="Flow name to check")
     check_parser.add_argument("--dry-run", action="store_true", help="Traverse flow without executing tasks")
     check_parser.add_argument("--json", action="store_true", help="Output report as JSON")
 
@@ -293,11 +291,11 @@ def main():
         return
 
     if args.command == "run":
-        flow_conf = config.flows.get(args.flow)
+        flow_conf = config.flow
         if not flow_conf:
-            print(f"Flow '{args.flow}' not found in config.")
+            print("Flow not found in config. Add 'flow:' with 'graph:' to your flow.yaml.")
             sys.exit(1)
-        
+
         # Params
         params = flow_conf.defaults.copy()
         if args.param:
@@ -310,7 +308,7 @@ def main():
             # Remote execution
             client = Client(args.server)
             try:
-                run_id = client.submit_run(args.flow, params)
+                run_id = client.submit_run("main", params)
                 print(f"🚀 Flow submitted! Run ID: {run_id}")
                 print(f"📋 View status: pyoco runs show {run_id} --server {args.server}")
             except Exception as e:
@@ -324,7 +322,7 @@ def main():
         
         try:
             # Create Flow and add all loaded tasks
-            flow = Flow(name=args.flow)
+            flow = Flow(name="main")
             for t in loader.tasks.values():
                 flow.add_task(t)
             eval_context["flow"] = flow
@@ -355,10 +353,10 @@ def main():
             sys.exit(1)
 
     elif args.command == "check":
-        print(f"Checking flow '{args.flow}'...")
-        flow_conf = config.flows.get(args.flow)
+        print("Checking flow...")
+        flow_conf = config.flow
         if not flow_conf:
-            print(f"Flow '{args.flow}' not found in config.")
+            print("Flow not found in config. Add 'flow:' with 'graph:' to your flow.yaml.")
             sys.exit(1)
 
         errors = []
@@ -371,7 +369,7 @@ def main():
         eval_context["switch"] = switch
         
         try:
-            flow = Flow(name=args.flow)
+            flow = Flow(name="main")
             for t in loader.tasks.values():
                 flow.add_task(t)
             eval_context["flow"] = flow
@@ -458,10 +456,7 @@ def main():
         return
 
 def _collect_plugin_reports():
-    dummy = SimpleNamespace(
-        tasks={},
-        discovery=SimpleNamespace(entry_points=[], packages=[], glob_modules=[]),
-    )
+    dummy = SimpleNamespace(tasks={})
     loader = TaskLoader(dummy)
     loader.load()
     return loader.plugin_reports

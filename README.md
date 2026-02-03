@@ -98,7 +98,7 @@ Pyoco is designed with a simple flow:
 +-----------+        +------------------+        +-----------------+
 ```
 
-1. **User Code**: You define tasks and flows using Python decorators.
+1. **User Code**: You define tasks and workflows using Python decorators.
 2. **Core Engine**: The engine resolves dependencies and executes tasks (in parallel where possible).
 3. **Trace**: Execution events are sent to the trace backend for logging (cute or plain).
 
@@ -128,9 +128,17 @@ See `docs/archive/observability.md` and `docs/archive/roadmap.md`.
 
 ## 🧩 Plug-ins
 
-Need to share domain-specific tasks? Publish an entry point under `pyoco.tasks` and pyoco will auto-load it. In v0.5.1 we recommend **Task subclasses first** (callables still work with warnings). See [docs/plugins.md](docs/plugins.md) for examples, quickstart, and `pyoco plugins list` / `pyoco plugins lint`.
+Need to share domain-specific tasks? Publish an entry point under `pyoco.tasks` and pyoco will auto-load it. We recommend **Task subclasses first** (callables still work with warnings). See [docs/plugins.md](docs/plugins.md) for examples, quickstart, and `pyoco plugins list` / `pyoco plugins lint`.
 
 **Big data note:** pass handles, not copies. For large tensors/images, stash paths or handles in `ctx.artifacts`/`ctx.scratch` and let downstream tasks materialize only when needed. For lazy pipelines (e.g., DataPipe), log the pipeline when you actually iterate (typically the training task) instead of materializing upstream.
+
+## 🧭 Task Discovery (Security)
+
+Pyoco does not allow configuring discovery scope in `flow.yaml` (the `discovery:` key is rejected) to reduce the risk of importing unexpected code.
+
+- **Entry point plug-ins**: auto-loaded from `importlib.metadata.entry_points(group="pyoco.tasks")`
+- **Extra imports (ops-controlled)**: set `PYOCO_DISCOVERY_MODULES` (comma/space-separated module names), e.g. `PYOCO_DISCOVERY_MODULES=tasks,myapp.extra_tasks`
+- **Explicit tasks**: prefer `tasks.<name>.callable` in `flow.yaml` (see tutorials)
 
 ## 📚 Documentation
 

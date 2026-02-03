@@ -9,7 +9,6 @@ def socketless_session():
         "tests.socketless_app:app",
         reset_hook="tests.socketless_app:reset_state",
         base_url="http://testserver",
-        debug=True,
     )
     yield
     cleanup()

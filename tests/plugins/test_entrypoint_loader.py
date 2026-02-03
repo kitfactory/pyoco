@@ -2,11 +2,11 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from pyoco.discovery.loader import TaskLoader
-from pyoco.schemas.config import PyocoConfig, DiscoveryConfig
+from pyoco.schemas.config import PyocoConfig
 
 
 def make_config():
-    return PyocoConfig(version=1, flows={}, tasks={}, discovery=DiscoveryConfig())
+    return PyocoConfig(version=1, flow=None, tasks={})
 
 
 def make_entry_point(name, hook):

@@ -7,7 +7,8 @@
 ## 現在地（必ず更新）
 - 現在フェーズ: P0
 - 今回スコープ（1〜5行）:
-  - LLM向けワークフロー生成支援（タスク一覧/詳細/flow.yamlガイド）の実装とテスト
+  - YAMLの`discovery`設定を廃止し、タスク探索を「entry points自動ロード + 環境変数によるモジュールimport」に一本化する
+  - flow.yaml を単一フロー（`flow:`）に簡略化する
 - 非ゴール（やらないこと）:
   - server/worker/observability はアーカイブ扱いで対象外
 - 重要リンク:

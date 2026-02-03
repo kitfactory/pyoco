@@ -1,4 +1,4 @@
-# Pyoco Plug-in Guide (v0.5.1)
+# Pyoco Plug-in Guide (v0.6.0)
 
 Pyoco keeps its core small and lets domain packages extend it via Python entry points. Any package can advertise additional tasks under the `pyoco.tasks` group; pyoco discovers and registers them automatically at startup.
 
@@ -37,7 +37,7 @@ def register_tasks(registry):
 
 3. **Install the plug-in** into the same environment as pyoco. `TaskLoader` calls the hook during discovery, so no changes to `flow.yaml` are required unless you want to override defaults.
 
-> 旧来の `@registry.task` デコレータも残っていますが、v0.5.1 以降は CLI で警告対象になります。新規開発は Task サブクラスで統一しましょう。
+> 旧来の `@registry.task` デコレータも残っていますが、CLI で警告対象になります。新規開発は Task サブクラスで統一しましょう。
 
 ## Recommended project structure
 
@@ -74,7 +74,7 @@ class AwesomeTask(Task):
         return "awesome"
 
 def test_register_tasks():
-    dummy = SimpleNamespace(tasks={}, discovery=SimpleNamespace(entry_points=[], packages=[], glob_modules=[]))
+    dummy = SimpleNamespace(tasks={})
     loader = TaskLoader(dummy)
     registry = PluginRegistry(loader, "demo")
     registry.task_class(AwesomeTask)

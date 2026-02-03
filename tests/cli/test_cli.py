@@ -11,9 +11,7 @@ from pyoco.core.models import Task
 def mock_config():
     return PyocoConfig(
         version=1,
-        flows={
-            "main": FlowConfig(graph="A >> B", defaults={"x": "1"})
-        },
+        flow=FlowConfig(graph="A >> B", defaults={"x": "1"}),
         tasks={
             "A": MagicMock(callable="mod:A", inputs={}),
             "B": MagicMock(callable="mod:B", inputs={})
@@ -37,7 +35,7 @@ def test_cli_check_valid(mock_config):
         main()
 
 def test_cli_check_cycle(mock_config):
-    mock_config.flows["main"].graph = "A >> B >> A" # Cycle
+    mock_config.flow.graph = "A >> B >> A" # Cycle
     
     with patch("pyoco.cli.main.PyocoConfig.from_yaml", return_value=mock_config), \
          patch("pyoco.cli.main.TaskLoader") as MockLoader, \
@@ -71,7 +69,7 @@ def test_cli_check_dry_run_json(mock_config, capsys):
         assert data["status"] == "ok"
 
 def test_cli_check_dry_run_error(mock_config):
-    mock_config.flows["main"].graph = "flow >> switch('$ctx.params.flag')[('*' >> A, '*' >> B)]"
+    mock_config.flow.graph = "flow >> switch('$ctx.params.flag')[('*' >> A, '*' >> B)]"
     
     with patch("pyoco.cli.main.PyocoConfig.from_yaml", return_value=mock_config), \
          patch("pyoco.cli.main.TaskLoader") as MockLoader, \
