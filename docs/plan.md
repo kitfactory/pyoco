@@ -16,6 +16,23 @@
 - [x] CLI supportの統合テストを実行する（tests/cli/test_cli_support.py）
 - [x] SupportInfoのE2Eテストを実行する（tests/test_e2e_support_info.py）
 - [x] 文書との整合性を確認する（docs/concept.md, docs/spec.md, docs/architecture.md）
+- [x] cancel要求時に「次タスク遷移前で停止」する境界キャンセルをEngineへ実装する（src/pyoco/core/engine.py）
+- [x] 実行中cancelの境界停止テストを追加する（tests/core/test_engine_cancellation_boundary.py）
+- [x] 1〜4の改善方針を文書化する（docs/OVERVIEW.md, docs/spec.md, docs/architecture.md）
+- [x] 並列実行時の標準出力/標準エラーをタスク単位で安全に捕捉する（src/pyoco/core/engine.py）
+- [x] 並列ログ捕捉の混線防止を単体テストで検証する（tests/core/test_engine_parallel.py）
+- [x] 参照式の誤記を内容が分かる例外で通知する（src/pyoco/core/context.py, src/pyoco/core/exceptions.py）
+- [x] 参照式の不正フォーマット検出テストを追加する（tests/core/test_context_resolve.py）
+- [x] `check` の graph 評価を `run` と同一規則へ統一する（src/pyoco/cli/main.py）
+- [x] `check` の評価規則統一をCLIテストで検証する（tests/cli/test_cli.py）
+- [x] 旧実装コメント/`pass` の整理で保守性を改善する（src/pyoco/core/models.py, src/pyoco/worker/runner.py）
+- [x] 回帰テストを実行して整合性を確認する（tests/core/test_context_resolve.py, tests/core/test_engine_parallel.py, tests/cli/test_cli.py）
+- [x] 文書との整合性を最終確認する（docs/spec.md, docs/architecture.md, docs/plan.md）
+- [x] ログ捕捉リファクタ計画を作成し作業単位を固定する（docs/plan.md）
+- [x] ログ捕捉を専用モジュールへ分離しEngineの隠れ依存を削除する（src/pyoco/core/log_capture.py, src/pyoco/core/engine.py）
+- [x] タスク実行時のログ付与処理を共通化して分岐を簡素化する（src/pyoco/core/engine.py）
+- [x] リファクタ向け回帰テストを追加する（tests/core/test_log_capture.py, tests/core/test_engine_parallel.py）
+- [x] 対象テストと全体テストを実行し文書整合を確認する（tests/core/test_log_capture.py, tests/core/test_engine_parallel.py, docs/plan.md）
 
 # future
 - SupportInfoの出力形式拡張（例: yaml）

@@ -1,6 +1,6 @@
 import time
 import pytest
-from pyoco.core.models import Task, Flow
+from pyoco.core.models import Task, Flow, RunContext
 from pyoco.core.engine import Engine
 from pyoco.core.context import Context
 
@@ -85,3 +85,34 @@ def test_diamond_dependency():
     # Duration check: A(0) + max(B(0.05), C(0.05)) + D(0) ~= 0.05
     # If sequential: 0.1
     assert duration < 0.09
+
+
+def test_parallel_logs_are_isolated_per_task():
+    def task_a(ctx):
+        for i in range(5):
+            print(f"A-{i}")
+            time.sleep(0.01)
+        return "A"
+
+    def task_b(ctx):
+        for i in range(5):
+            print(f"B-{i}")
+            time.sleep(0.01)
+        return "B"
+
+    flow = Flow(name="parallel_log_isolation")
+    flow.add_task(Task(func=task_a, name="A"))
+    flow.add_task(Task(func=task_b, name="B"))
+
+    run_ctx = RunContext()
+    engine = Engine()
+    engine.run(flow, run_context=run_ctx)
+
+    log_by_task = {"A": "", "B": ""}
+    for entry in run_ctx.logs:
+        log_by_task[entry["task"]] += entry["text"]
+
+    assert "A-" in log_by_task["A"]
+    assert "B-" in log_by_task["B"]
+    assert "B-" not in log_by_task["A"]
+    assert "A-" not in log_by_task["B"]

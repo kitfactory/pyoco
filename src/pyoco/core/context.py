@@ -2,6 +2,7 @@ import threading
 from typing import Any, Dict, List, Optional, Sequence
 from dataclasses import dataclass, field
 from .models import RunContext
+from .exceptions import InvalidReferenceError
 
 
 @dataclass
@@ -149,10 +150,11 @@ class Context:
             # $node.A.output -> ["$node", "A", "output"]
             # $node.A.output.x -> ["$node", "A", "output", "x"]
             if len(parts) < 3 or parts[2] != "output":
-                 # Malformed or unsupported node selector
-                 return value
+                raise InvalidReferenceError(value, "expected '$node.<task>.output[.<field>...]'")
             
             node_name = parts[1]
+            if not node_name:
+                raise InvalidReferenceError(value, "task name is required after '$node.'")
             if node_name not in self.results:
                 raise KeyError(f"Node '{node_name}' result not found in context.")
             
@@ -170,14 +172,20 @@ class Context:
         # $ctx.params.<Key>
         if value.startswith("$ctx.params."):
             key = value[len("$ctx.params."):]
+            if not key:
+                raise InvalidReferenceError(value, "parameter key is required after '$ctx.params.'")
             if key not in self.params:
                 raise KeyError(f"Param '{key}' not found in context.")
             return self.params[key]
+        if value.startswith("$ctx."):
+            raise InvalidReferenceError(value, "only '$ctx.params.<key>' is supported")
 
         # $env.<Key>
         if value.startswith("$env."):
             import os
             key = value[len("$env."):]
+            if not key:
+                raise InvalidReferenceError(value, "environment key is required after '$env.'")
             # Check ctx.env first, then os.environ
             if key in self.env:
                 return self.env[key]
@@ -185,7 +193,7 @@ class Context:
                 return os.environ[key]
             raise KeyError(f"Environment variable '{key}' not found.")
 
-        return value
+        raise InvalidReferenceError(value, "unknown selector")
 
     def expression_data(self) -> Dict[str, Any]:
         data: Dict[str, Any] = {}

@@ -68,6 +68,25 @@ def test_cli_check_dry_run_json(mock_config, capsys):
         data = json.loads(json_payload)
         assert data["status"] == "ok"
 
+def test_cli_check_uses_exec_for_multiline_graph(mock_config, capsys):
+    mock_config.flow.graph = "x = 1\nflow >> A >> B"
+
+    with patch("pyoco.cli.main.PyocoConfig.from_yaml", return_value=mock_config), \
+         patch("pyoco.cli.main.TaskLoader") as MockLoader, \
+         patch("sys.argv", ["pyoco", "check", "--config", "dummy.yaml", "--dry-run", "--json"]):
+        
+        loader = MockLoader.return_value
+        loader.tasks = {
+            "A": Task(func=lambda: None, name="A"),
+            "B": Task(func=lambda: None, name="B")
+        }
+        
+        main()
+        out = capsys.readouterr().out
+        json_payload = out[out.find("{"):]
+        data = json.loads(json_payload)
+        assert data["status"] == "ok"
+
 def test_cli_check_dry_run_error(mock_config):
     mock_config.flow.graph = "flow >> switch('$ctx.params.flag')[('*' >> A, '*' >> B)]"
     

@@ -49,3 +49,11 @@ class MissingTaskMetadataError(SupportInfoError):
         self.fields = fields
         field_list = ",".join(fields)
         super().__init__(f"Missing task metadata: {name} fields={field_list}")
+
+
+class InvalidReferenceError(ValueError):
+    def __init__(self, reference: str, reason: str):
+        self.reference = reference
+        self.reason = reason
+        supported = "$node.<task>.output[.<field>...], $ctx.params.<key>, $env.<key>"
+        super().__init__(f"Invalid reference '{reference}': {reason}. Supported selectors: {supported}")

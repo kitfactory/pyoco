@@ -374,7 +374,7 @@ def main():
                 flow.add_task(t)
             eval_context["flow"] = flow
             
-            eval(flow_conf.graph, {}, eval_context)
+            exec(flow_conf.graph, {}, eval_context)
             
             # 3. Reachability / Orphans
             if len(flow.tasks) > 1:

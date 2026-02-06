@@ -1,32 +1,20 @@
 import time
-import io
 import sys
 import traceback
 from typing import Dict, Any, List, Set, Optional
-import contextlib
 from .models import Flow, Task, RunContext, TaskState, RunStatus
 from .context import Context, LoopFrame
 from .exceptions import UntilMaxIterationsExceeded
+from .log_capture import RunLogCapture
 from ..trace.backend import TraceBackend
 from ..trace.console import ConsoleTraceBackend
 from ..dsl.nodes import TaskNode, RepeatNode, ForEachNode, UntilNode, SwitchNode, DEFAULT_CASE_VALUE
 from ..dsl.expressions import Expression
 
-class TeeStream:
-    def __init__(self, original):
-        self.original = original
-        self.buffer = io.StringIO()
 
-    def write(self, data):
-        self.original.write(data)
-        self.buffer.write(data)
-        return len(data)
+class _BoundaryCancellation(Exception):
+    pass
 
-    def flush(self):
-        self.original.flush()
-
-    def getvalue(self):
-        return self.buffer.getvalue()
 
 class Engine:
     """
@@ -81,15 +69,27 @@ class Engine:
         # Register active run
         self.active_runs[run_ctx.run_id] = run_ctx
 
+        log_capture = RunLogCapture(stdout=sys.stdout, stderr=sys.stderr)
+        with log_capture.activate():
+            return self._run_flow(flow, ctx, run_ctx, log_capture)
+
+    def _run_flow(self, flow: Flow, ctx: Context, run_ctx: RunContext, log_capture: RunLogCapture) -> Context:
         if flow.has_control_flow():
             try:
                 program = flow.build_program()
-                self._execute_subflow(program, ctx)
-                run_ctx.status = RunStatus.COMPLETED
+                self._execute_subflow(program, ctx, log_capture)
+                if run_ctx.status == RunStatus.RUNNING:
+                    run_ctx.status = RunStatus.COMPLETED
+            except _BoundaryCancellation:
+                run_ctx.status = RunStatus.CANCELLED
             except Exception:
                 run_ctx.status = RunStatus.FAILED
                 run_ctx.end_time = time.time()
                 raise
+            finally:
+                if run_ctx.run_id in self.active_runs:
+                    del self.active_runs[run_ctx.run_id]
+                self.trace.on_flow_end(flow.name)
             run_ctx.end_time = time.time()
             return ctx
         
@@ -110,11 +110,9 @@ class Engine:
                 while len(executed) + len(failed) < len(flow.tasks):
                     # Check for cancellation
                     if run_ctx.status in [RunStatus.CANCELLING, RunStatus.CANCELLED]:
-                        # Stop submitting new tasks
-                        # Mark all PENDING tasks as CANCELLED
-                        for t_name, t_state in run_ctx.tasks.items():
-                            if t_state == TaskState.PENDING:
-                                run_ctx.tasks[t_name] = TaskState.CANCELLED
+                        # Stop submitting new tasks and cancel queued futures that have not started yet.
+                        self._cancel_queued_futures(running, future_to_task, task_deadlines, run_ctx)
+                        self._mark_pending_tasks_cancelled(run_ctx)
                         
                         # If no running tasks, we are done
                         if not running:
@@ -203,7 +201,7 @@ class Engine:
                     
                     # Submit runnable tasks
                     for task in runnable:
-                        future = executor.submit(self._execute_task, task, ctx)
+                        future = executor.submit(self._execute_task, task, ctx, log_capture)
                         running.add(future)
                         future_to_task[future] = task
                         # Record start time for timeout tracking
@@ -302,35 +300,79 @@ class Engine:
         run_ctx.end_time = time.time()
         return ctx
 
-    def _execute_subflow(self, subflow, ctx: Context):
-        for node in subflow.steps:
-            self._execute_node(node, ctx)
+    def _mark_pending_tasks_cancelled(self, run_ctx: RunContext):
+        now = time.time()
+        for task_name, task_state in run_ctx.tasks.items():
+            if task_state != TaskState.PENDING:
+                continue
+            run_ctx.tasks[task_name] = TaskState.CANCELLED
+            record = run_ctx.ensure_task_record(task_name)
+            record.state = TaskState.CANCELLED
+            if record.ended_at is None:
+                record.ended_at = now
 
-    def _execute_node(self, node, ctx: Context):
+    def _cancel_queued_futures(
+        self,
+        running: Set[Any],
+        future_to_task: Dict[Any, Task],
+        task_deadlines: Dict[Task, float],
+        run_ctx: RunContext,
+    ):
+        now = time.time()
+        for future in list(running):
+            if not future.cancel():
+                continue
+            running.remove(future)
+            task = future_to_task.get(future)
+            if not task:
+                continue
+            task_deadlines.pop(task, None)
+            run_ctx.tasks[task.name] = TaskState.CANCELLED
+            record = run_ctx.ensure_task_record(task.name)
+            record.state = TaskState.CANCELLED
+            if record.ended_at is None:
+                record.ended_at = now
+
+    def _raise_if_cancel_requested(self, ctx: Context):
+        run_ctx = ctx.run_context
+        if not run_ctx:
+            return
+        if run_ctx.status in [RunStatus.CANCELLING, RunStatus.CANCELLED]:
+            self._mark_pending_tasks_cancelled(run_ctx)
+            run_ctx.status = RunStatus.CANCELLED
+            raise _BoundaryCancellation()
+
+    def _execute_subflow(self, subflow, ctx: Context, log_capture: Optional[RunLogCapture] = None):
+        for node in subflow.steps:
+            self._raise_if_cancel_requested(ctx)
+            self._execute_node(node, ctx, log_capture)
+
+    def _execute_node(self, node, ctx: Context, log_capture: Optional[RunLogCapture] = None):
         if isinstance(node, TaskNode):
-            self._execute_task(node.task, ctx)
+            self._execute_task(node.task, ctx, log_capture)
         elif isinstance(node, RepeatNode):
-            self._execute_repeat(node, ctx)
+            self._execute_repeat(node, ctx, log_capture)
         elif isinstance(node, ForEachNode):
-            self._execute_foreach(node, ctx)
+            self._execute_foreach(node, ctx, log_capture)
         elif isinstance(node, UntilNode):
-            self._execute_until(node, ctx)
+            self._execute_until(node, ctx, log_capture)
         elif isinstance(node, SwitchNode):
-            self._execute_switch(node, ctx)
+            self._execute_switch(node, ctx, log_capture)
         else:
             raise TypeError(f"Unknown node type: {type(node)}")
 
-    def _execute_repeat(self, node: RepeatNode, ctx: Context):
+    def _execute_repeat(self, node: RepeatNode, ctx: Context, log_capture: Optional[RunLogCapture] = None):
         count_value = self._resolve_repeat_count(node.count, ctx)
         for index in range(count_value):
+            self._raise_if_cancel_requested(ctx)
             frame = LoopFrame(name="repeat", type="repeat", index=index, iteration=index + 1, count=count_value)
             ctx.push_loop(frame)
             try:
-                self._execute_subflow(node.body, ctx)
+                self._execute_subflow(node.body, ctx, log_capture)
             finally:
                 ctx.pop_loop()
 
-    def _execute_foreach(self, node: ForEachNode, ctx: Context):
+    def _execute_foreach(self, node: ForEachNode, ctx: Context, log_capture: Optional[RunLogCapture] = None):
         sequence = self._eval_expression(node.source, ctx)
         if not isinstance(sequence, (list, tuple)):
             raise TypeError("ForEach source must evaluate to a list or tuple.")
@@ -338,6 +380,7 @@ class Engine:
         total = len(sequence)
         label = node.alias or node.source.source
         for index, item in enumerate(sequence):
+            self._raise_if_cancel_requested(ctx)
             frame = LoopFrame(
                 name=f"foreach:{label}",
                 type="foreach",
@@ -350,17 +393,18 @@ class Engine:
             if node.alias:
                 ctx.set_var(node.alias, item)
             try:
-                self._execute_subflow(node.body, ctx)
+                self._execute_subflow(node.body, ctx, log_capture)
             finally:
                 if node.alias:
                     ctx.clear_var(node.alias)
                 ctx.pop_loop()
 
-    def _execute_until(self, node: UntilNode, ctx: Context):
+    def _execute_until(self, node: UntilNode, ctx: Context, log_capture: Optional[RunLogCapture] = None):
         max_iter = node.max_iter or 1000
         iteration = 0
         last_condition = None
         while True:
+            self._raise_if_cancel_requested(ctx)
             iteration += 1
             frame = LoopFrame(
                 name="until",
@@ -372,7 +416,7 @@ class Engine:
             )
             ctx.push_loop(frame)
             try:
-                self._execute_subflow(node.body, ctx)
+                self._execute_subflow(node.body, ctx, log_capture)
                 condition_result = bool(self._eval_expression(node.condition, ctx))
             finally:
                 ctx.pop_loop()
@@ -383,7 +427,7 @@ class Engine:
             if iteration >= max_iter:
                 raise UntilMaxIterationsExceeded(node.condition.source, max_iter)
 
-    def _execute_switch(self, node: SwitchNode, ctx: Context):
+    def _execute_switch(self, node: SwitchNode, ctx: Context, log_capture: Optional[RunLogCapture] = None):
         value = self._eval_expression(node.expression, ctx)
         default_case = None
         for case in node.cases:
@@ -392,10 +436,10 @@ class Engine:
                     default_case = case
                 continue
             if case.value == value:
-                self._execute_subflow(case.target, ctx)
+                self._execute_subflow(case.target, ctx, log_capture)
                 return
         if default_case:
-            self._execute_subflow(default_case.target, ctx)
+            self._execute_subflow(default_case.target, ctx, log_capture)
     def _resolve_repeat_count(self, count_value, ctx: Context) -> int:
         if isinstance(count_value, Expression):
             resolved = self._eval_expression(count_value, ctx)
@@ -412,7 +456,13 @@ class Engine:
             return expression.evaluate(ctx=ctx.expression_data(), env=ctx.env_data())
         return expression
 
-    def _execute_task(self, task: Task, ctx: Context):
+    def _append_task_logs(self, run_ctx: Optional[RunContext], task_name: str, stdout_capture, stderr_capture):
+        if not run_ctx:
+            return
+        run_ctx.append_log(task_name, "stdout", stdout_capture.getvalue() if stdout_capture else "")
+        run_ctx.append_log(task_name, "stderr", stderr_capture.getvalue() if stderr_capture else "")
+
+    def _execute_task(self, task: Task, ctx: Context, log_capture: Optional[RunLogCapture] = None):
         # Update state to RUNNING
         from .models import TaskState
         run_ctx = ctx.run_context
@@ -431,6 +481,8 @@ class Engine:
         # Retry loop
         retries_left = task.retries
         while True:
+            stdout_capture = None
+            stderr_capture = None
             try:
                 # Resolve inputs from task configuration
                 kwargs = {}
@@ -460,14 +512,13 @@ class Engine:
                 if record:
                     record.inputs = {k: v for k, v in kwargs.items() if k != "ctx"}
 
-                stdout_capture = TeeStream(sys.stdout)
-                stderr_capture = TeeStream(sys.stderr)
-                with contextlib.redirect_stdout(stdout_capture), contextlib.redirect_stderr(stderr_capture):
+                if log_capture:
+                    with log_capture.capture_task() as (stdout_capture, stderr_capture):
+                        result = task.func(**kwargs)
+                else:
                     result = task.func(**kwargs)
                 ctx.set_result(task.name, result)
-                if run_ctx:
-                    run_ctx.append_log(task.name, "stdout", stdout_capture.getvalue())
-                    run_ctx.append_log(task.name, "stderr", stderr_capture.getvalue())
+                self._append_task_logs(run_ctx, task.name, stdout_capture, stderr_capture)
                 
                 # Handle outputs saving
                 for target_path in task.outputs:
@@ -507,9 +558,7 @@ class Engine:
                 return # Success
                 
             except Exception as e:
-                if run_ctx:
-                    run_ctx.append_log(task.name, "stdout", stdout_capture.getvalue() if 'stdout_capture' in locals() else "")
-                    run_ctx.append_log(task.name, "stderr", stderr_capture.getvalue() if 'stderr_capture' in locals() else "")
+                self._append_task_logs(run_ctx, task.name, stdout_capture, stderr_capture)
                 if record:
                     record.state = TaskState.FAILED
                     record.ended_at = time.time()

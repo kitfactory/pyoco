@@ -102,56 +102,10 @@ class Worker:
         
         # Execute
         engine = Engine()
-        
-        # We need to inject run_id into Engine.
-        # Engine.run generates run_id if not provided.
-        # We need to pass it.
-        # Engine.run doesn't accept run_id argument currently.
-        # It creates RunContext inside.
-        # I need to modify Engine.run to accept optional run_id or RunContext.
-        
-        # Wait, I modified Engine.run in v0.2.0.
-        # Let's check Engine.run signature.
-        pass 
-        
-        # I will modify Engine.run to accept run_id.
-        # For now, let's assume I will do that.
-        
-        # Create RemoteTraceBackend
-        # But we need run_ctx to create backend.
-        # And Engine creates run_ctx.
-        # Chicken and egg.
-        
-        # Solution: Engine.run should accept an existing RunContext or run_id.
-        # If I pass run_id, Engine creates RunContext with that ID.
-        # Then I can access it?
-        # Or I pass a callback to get it?
-        
-        # Better: Pass run_id to Engine.run.
-        # Engine creates RunContext.
-        # Engine calls trace.on_flow_start(run_id=...).
-        # RemoteTraceBackend receives run_id.
-        # But RemoteTraceBackend needs to know which run_id to report to (it knows from constructor).
-        # Actually, RemoteTraceBackend needs access to the RunContext object that Engine creates.
-        # Because it reads `run_ctx.tasks` and `run_ctx.status`.
-        
-        # If Engine creates RunContext internally, we can't pass it to Backend beforehand.
-        # Unless Engine exposes it.
-        
-        # Alternative:
-        # Modify Engine to accept `run_context` argument.
-        # If provided, use it.
-        
-        # I will modify Engine.run to accept `run_context`.
-        
+
         run_ctx = RunContext(run_id=run_id, status=RunStatus.RUNNING)
-        # Initialize tasks as PENDING? Engine does that.
-        
         backend = RemoteTraceBackend(self.client, run_ctx)
-        engine.trace = backend # Replace default console trace? Or chain?
-        # Maybe chain if we want local logs too.
-        # For now, just replace or use MultiBackend (not implemented).
-        # Let's just use RemoteBackend.
+        engine.trace = backend
         
         try:
             engine.run(flow, params=params, run_context=run_ctx)

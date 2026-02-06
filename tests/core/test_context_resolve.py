@@ -1,5 +1,6 @@
 import pytest
 from pyoco.core.context import Context
+from pyoco.core.exceptions import InvalidReferenceError
 
 def test_resolve_literal():
     ctx = Context()
@@ -46,9 +47,14 @@ def test_resolve_missing_param():
 
 def test_resolve_invalid_format():
     ctx = Context()
-    # Should be treated as literal if it doesn't match known patterns?
-    # Or raise error? Spec says "Selectors: $ctx.*, $flow.*, $env.*, $node.<Name>.output"
-    # Let's assume anything starting with $ that isn't a known selector is just a string for now,
-    # unless we want strict validation.
-    # For now, let's expect it to return as-is if it doesn't match the specific patterns we implement.
-    assert ctx.resolve("$unknown.pattern") == "$unknown.pattern"
+    with pytest.raises(InvalidReferenceError) as exc:
+        ctx.resolve("$unknown.pattern")
+    assert "$unknown.pattern" in str(exc.value)
+
+
+def test_resolve_malformed_node_selector():
+    ctx = Context()
+    with pytest.raises(InvalidReferenceError) as exc:
+        ctx.resolve("$node.A.out")
+    assert "$node.A.out" in str(exc.value)
+    assert "$node.<task>.output" in str(exc.value)

@@ -34,7 +34,7 @@
 |---|---|---|---|---|
 | taskデコレータ | 関数をTaskとして登録 | func: Callable（任意引数, ctx注入可） | TaskWrapper（task: Task） | - |
 | Flow.add_task | FlowへTask追加 | task: Task | None | - |
-| CLI: run/check | 設定からFlowを構築 | config: file path, flow: str | Flow | ERR-PYOCO-0001: 読み込み不正, ERR-PYOCO-0002: 未定義タスク参照 |
+| CLI: run/check | 設定からFlowを構築 | config: file path, flow: str | Flow | ERR-PYOCO-0001: 読み込み不正, ERR-PYOCO-0002: 未定義タスク参照（run/check は同一の graph 評価規則を使用） |
 
 #### UC-3: 依存のない処理を並列化する
 | 操作/API | 役割 | 入力（型/主要フィールド/値範囲） | 出力（型/主要フィールド） | 例外（発生条件） |
@@ -44,7 +44,7 @@
 #### UC-4: タスク成果物を次のタスクに渡す
 | 操作/API | 役割 | 入力（型/主要フィールド/値範囲） | 出力（型/主要フィールド） | 例外（発生条件） |
 |---|---|---|---|---|
-| Task.inputs（参照式） | 上流出力/params/envを参照 | inputs: dict<str, str>（$ctx.params.* を基本、上書き回避/明示的な上流出力は $node.<task>.output、$env.*） | 実行時に解決された値 | ERR-PYOCO-0006: 参照先不存在 |
+| Task.inputs（参照式） | 上流出力/params/envを参照 | inputs: dict<str, str>（$ctx.params.* を基本、上書き回避/明示的な上流出力は $node.<task>.output、$env.*） | 実行時に解決された値 | ERR-PYOCO-0006: 参照先不存在/参照式の構文不正 |
 | Context.save_artifact | 成果物をファイル保存 | name: str, data: Any | path: str | ERR-PYOCO-0007: ファイルI/O失敗 |
 
 #### UC-5: LLM向け支援情報を取得する
@@ -79,7 +79,7 @@
 | ERR-PYOCO-0003 | Engine.run | 依存循環/デッドロック |
 | ERR-PYOCO-0004 | Engine._execute_task | タスク例外 |
 | ERR-PYOCO-0005 | Engine.run | タスクタイムアウト |
-| ERR-PYOCO-0006 | Context.resolve | 参照先不存在 |
+| ERR-PYOCO-0006 | Context.resolve | 参照先不存在/参照式の構文不正 |
 
 ##### Method: cancel
 | 引数 | 型 | 意味 | 値範囲/制約 | 必須 |
@@ -209,7 +209,7 @@
 
 | 例外 | 発生場所 | 発生原因 |
 |---|---|---|
-| ERR-PYOCO-0006 | Context.resolve | 参照先不存在 |
+| ERR-PYOCO-0006 | Context.resolve | 参照先不存在/参照式の構文不正 |
 
 ##### Method: save_artifact
 | 引数 | 型 | 意味 | 値範囲/制約 | 必須 |
@@ -391,8 +391,8 @@
 | フロー | 成功条件 | 失敗条件 | 例外時の動作 |
 |---|---|---|---|
 | Python APIでフロー実行 | 全タスク完了しstatus=COMPLETED | 依存循環/タスク例外/タイムアウト | ERR-PYOCO-0003/0004/0005 を返し実行停止 |
-| CLIでローカル実行 | config読込→Flow構築→実行完了 | config読込失敗/Flow未定義/評価失敗/未定義タスク参照 | ERR-PYOCO-0001/0002 を表示しexit code=1 |
-| キャンセル | pendingをCANCELLEDにし実行終了 | 実行中フローなし | ERR-PYOCO-0008 を通知し終了 |
+| CLIでローカル実行 | config読込→Flow構築→実行完了（run/checkで同一評価規則） | config読込失敗/Flow未定義/評価失敗/未定義タスク参照 | ERR-PYOCO-0001/0002 を表示しexit code=1 |
+| キャンセル | 実行中タスク完了後、次タスク遷移前に未開始タスクをCANCELLEDにして実行終了 | 実行中フローなし | ERR-PYOCO-0008 を通知し終了 |
 | 支援情報（tasks/detail/guide）生成 | format済み文字列を生成 | format不正/一致するタスクなし/出力失敗/フィルタ不正/必須メタ情報欠落 | ERR-PYOCO-0009/0010/0011/0012/0013 を通知し終了 |
 
 #5.データ設計（永続化・整合性・マイグレーション）
@@ -450,7 +450,7 @@ CLI -> PyocoConfig, TaskLoader, Engine, SupportInfoService
 | 依存循環/デッドロック | Engine.run | 実行不能な依存 | ERR-PYOCO-0003 で停止 | 依存修正 |
 | タスク実行例外 | Engine._execute_task | ユーザー関数例外 | ERR-PYOCO-0004 を出力し停止 | fail_policy=stop |
 | タスクタイムアウト | Engine.run | timeout_sec超過 | ERR-PYOCO-0005 を出力し停止 | timeout調整 |
-| 入力参照不足 | Context.resolve | 参照先不存在 | ERR-PYOCO-0006 を出力し停止 | 入力修正 |
+| 入力参照不正 | Context.resolve | 参照先不存在/参照式の構文不正 | ERR-PYOCO-0006 を出力し停止 | 入力修正 |
 | 成果物保存失敗 | Context.save_artifact | 権限/パス不正 | ERR-PYOCO-0007 を出力し停止 | パス修正 |
 | キャンセル対象なし | Engine.cancel | 該当run無し | ERR-PYOCO-0008 を通知 | 影響なし |
 | format不正 | SupportInfoRenderer | 未対応format | ERR-PYOCO-0009 を通知 | format修正 |
