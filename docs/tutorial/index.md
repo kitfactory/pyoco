@@ -1,6 +1,6 @@
 # Pyoco Tutorial
 
-Welcome to the Pyoco tutorial! This guide will take you from running your first workflow to mastering advanced features like parallelism and error handling.
+Welcome to the Pyoco tutorial! This guide will take you from running your first workflow to mastering control components and error handling.
 
 ## Table of Contents
 
@@ -10,8 +10,8 @@ Welcome to the Pyoco tutorial! This guide will take you from running your first 
     *   Make your tasks dynamic and configurable.
 3.  [Data Flow & Dependencies](03_data_flow.md)
     *   Pass data between tasks and define dependencies.
-4.  [Parallelism & Branching](04_parallel.md)
-    *   Execute tasks concurrently and handle logic branches.
+4.  [Control Components (pipe/switch/repeat/foreach/until)](04_parallel.md)
+    *   Compose reusable branches and loop controls in graph DSL.
 5.  [Artifacts & Saving](05_artifacts.md)
     *   Save task outputs to files.
 6.  [Advanced: Error Handling](06_errors.md)

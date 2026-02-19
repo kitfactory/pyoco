@@ -30,15 +30,16 @@ This document outlines the proposed step-by-step tutorial to help users master `
     - Task 2: Multiplies it by 2.
     - Task 3: Formats the result string.
 
-## 4. Parallelism & Branching (`04_parallel`)
-**Goal**: Execute tasks concurrently and handle logic branches.
+## 4. Control Components (`04_parallel`)
+**Goal**: Compose control flow with current graph DSL components.
 - **Concepts**:
-    - Parallel execution syntax: `(A & B)`.
-    - Branching syntax: `(A | B)`.
-    - Understanding "Cute Mode" output for parallel tasks.
+    - `pipe(NAME)` for reusable pipeline fragments.
+    - `switch(on=...){ ... }` for single-branch selection.
+    - `repeat` / `foreach` / `until` for loop control.
 - **Scenario**:
-    - "Morning Routine": Brush teeth and Wash face (Parallel).
-    - Then: Eat breakfast.
+    - Setup pipeline via `pipe(setup)`.
+    - Route by mode with `switch`.
+    - Process list items with `foreach` and poll completion with `until`.
 
 ## 5. Artifacts & Saving (`05_artifacts`)
 **Goal**: Persist task outputs to files.

@@ -3,14 +3,13 @@
 > [!IMPORTANT]
 > **テスト要件**: 各チェックリスト項目は、関連するテスト（既存または新規追加）がパスしたことを確認してから完了とし、次の項目に進んでください。
 
-## 1. 分岐ロジック (`dsl/syntax.py`, `core/engine.py`)
-- [x] **OR (`|`) のDSLサポート**
-    - [x] `TaskWrapper.__or__` が分岐を表す構造を正しく構築することを確認する。
-    - [x] `Flow` グラフにおいて `|` が `&` とどう異なるか（例: 条件付きエッジや特定のノードタイプ）を定義する。
-- [x] **ランタイムでの分岐選択**
-    - [x] どの分岐に進むかを決定するロジックを実装する。
-    - [x] *注: 仕様では条件定義が曖昧です。条件が前のタスクの出力の一部か、別のロジックかを決定する必要があります。*
-    - [x] MVP向け: 「OR-join」動作（*いずれか*の依存関係を待つ？）または単純な条件付きスキップを実装する。
+## 1. 制御DSL（現行仕様） (`dsl/graph.py`, `core/engine.py`)
+- [x] **`switch` のDSLサポート**
+    - [x] `switch(on=...){ ... }` の構文解析と実行を実装する。
+    - [x] `default` 省略時エラーを実行時に返す。
+- [x] **反復DSLのサポート**
+    - [x] `repeat` / `foreach` / `until` の構文解析と実行を実装する。
+    - [x] collect 既定値（repeat/foreach=`list`, until=`last`）を適用する。
 
 ## 2. ディスカバリーの競合解決 (`discovery/loader.py`)
 - [x] **優先順位ルールの実装**
@@ -22,9 +21,10 @@
     - [x] `TaskLoader` に `strict: bool` フラグを追加する。
     - [x] Strict モードでの名前衝突時に `AmbiguousTaskError` を発生させる。
 
-## 3. Glob モジュール (`discovery/loader.py`)
-- [x] **Glob 展開の実装**
-    - [x] `TaskLoader.load()` で `config.discovery.glob_modules` を反復処理する。
-    - [x] `glob` モジュールを使用して一致するファイル/モジュールを検索する。
-    - [x] ファイルパスをモジュールパス（ドット区切り）に変換する。
-    - [x] 発見されたモジュールをインポートしてスキャンする。
+## 3. ディスカバリー方式の一本化 (`discovery/loader.py`)
+- [x] **flow.yaml 依存探索設定の廃止**
+    - [x] `flow.yaml` の `discovery` キーを拒否する。
+    - [x] 明示エラーを返し、利用者へ修正方法を提示する。
+- [x] **探索元の限定**
+    - [x] `pyoco.tasks` entry points を自動ロードする。
+    - [x] `PYOCO_DISCOVERY_MODULES` 指定モジュールを追加ロードする。

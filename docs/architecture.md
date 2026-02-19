@@ -1,8 +1,11 @@
 # architecture.md（必ず書く：最新版）
 #1.アーキテクチャ概要（構成要素と責務）
 - ユーザーコード/CLI: タスク・フロー定義、実行/検証/支援情報取得の入口
-- DSL/API: @task と Flow 構文でDAGを構築
+- DSL/API: `>>` 固定のパイプDSL（Task/pipe/switch/repeat/foreach/until）を解析してDAGを構築
 - 実行制御: Engine が依存解決・並列実行・キャンセル・状態更新を担う
+- DSL解析: DSLParser が graph を字句解析/構文解析し、Term列ASTへ変換する
+- 参照展開: PipeResolver が `pipe(NAME)` を展開し循環/上限（深さ128・Term数4096）を検証する
+- 形式検証: DryRunValidator が DSL形式のみを検証（式の実評価は対象外）
 - 支援情報生成: SupportInfoService がタスク情報を収集し、SupportInfoRenderer が format 変換
 - 実行コンテキスト: Context が params/results/scratch/artifacts を管理（artifactsは慣習的な入れ物）
 - ドメインモデル: Task/Flow/RunContext/TaskRecord/TaskInfo/TaskIO/SupportInfo が実行状態とメタ情報を保持
@@ -17,16 +20,23 @@
 | conceptレイヤー | 対応コンポーネント | 主な責務 |
 |---|---|---|
 | プレゼンテーション層 | Python API（task/Flow/run/support）, CLI | フロー定義・実行・支援情報取得 |
-| アプリケーション層 | Engine, TaskLoader, FlowValidator, SupportInfoService, SupportInfoRenderer | 実行制御/検証/支援情報生成 |
-| ドメイン層 | Task/Flow/RunContext/TaskRecord/TaskInfo/TaskIO, DSLノード | DAG表現とメタ情報管理 |
+| アプリケーション層 | Engine, TaskLoader, DSLParser, PipeResolver, DryRunValidator, FlowValidator, SupportInfoService, SupportInfoRenderer | 実行制御/DSL解析/形式検証/支援情報生成 |
+| ドメイン層 | Task/Flow/RunContext/TaskRecord/TaskInfo/TaskIO, DSLノード（TaskTerm/PipeRefTerm/SwitchTerm/RepeatTerm/ForEachTerm/UntilTerm） | DAG表現とメタ情報管理 |
 | インフラ層 | ThreadPoolExecutor, filesystem, yaml, json | 並列実行基盤・入出力 |
+
+#2.1 DSL運用ポリシー
+- 互換方針: 互換レイヤは持たず、新DSLパーサを正本とする。
+- 演算子方針: 連結は `>>` のみを許可し、`>` は未対応エラーとする。
+- 反復集約: 既定collectは `repeat=list`, `foreach=list`, `until=last`。
+- 変数衝突: `item`/`index` 名の衝突はユーザー自己管理とし、仕様書に予約語/推奨命名を明記する。
+- dry-run方針: 形式検証のみ行い、式や外部データの実評価は行わない。
 
 #3.インターフェース設計（Interface）
 ### UI/APP境界（ユースケース単位）
 #### UC-1: 小規模ETL/前処理をDAGで実行
 | 操作/API | 役割 | 入力（型/主要フィールド/値範囲） | 出力（型/主要フィールド） | 例外（発生条件） |
 |---|---|---|---|---|
-| Engine.run | Flowを実行 | flow: Flow（tasks: set<Task>）, params: dict<str, Any> | Context（results: dict<str, Any>, artifacts: dict<str, Any>, run_context: RunContext） | ERR-PYOCO-0003: 依存循環/デッドロック, ERR-PYOCO-0004: タスク例外, ERR-PYOCO-0005: タイムアウト, ERR-PYOCO-0006: 入力参照不足 |
+| Engine.run | Flowを実行 | flow: Flow（tasks: set<Task>）, params: dict<str, Any> | Context（results: dict<str, Any>, artifacts: dict<str, Any>, run_context: RunContext） | ERR-PYOCO-0003: 依存循環/デッドロック, ERR-PYOCO-0004: タスク例外, ERR-PYOCO-0005: タイムアウト, ERR-PYOCO-0006: 入力参照不足, ERR-PYOCO-0016: switch未一致 |
 | pyoco.run | 簡易実行 | flow: Flow, params: dict<str, Any>, trace: bool, cute: bool | Context | 同上 |
 
 #### UC-2: 手作業手順を再実行可能にする
@@ -34,7 +44,7 @@
 |---|---|---|---|---|
 | taskデコレータ | 関数をTaskとして登録 | func: Callable（任意引数, ctx注入可） | TaskWrapper（task: Task） | - |
 | Flow.add_task | FlowへTask追加 | task: Task | None | - |
-| CLI: run/check | 設定からFlowを構築 | config: file path, flow: str | Flow | ERR-PYOCO-0001: 読み込み不正, ERR-PYOCO-0002: 未定義タスク参照（run/check は同一の graph 評価規則を使用） |
+| CLI: run/check | 設定からFlowを構築 | config: file path, flow: str | Flow | ERR-PYOCO-0001: 読み込み不正, ERR-PYOCO-0002: 未定義タスク参照, ERR-PYOCO-0014: DSL構文不正, ERR-PYOCO-0015: pipe参照不正, ERR-PYOCO-0017: 反復設定不正, ERR-PYOCO-0018: collect不正（run/check は同一DSL評価規則を使用） |
 
 #### UC-3: 依存のない処理を並列化する
 | 操作/API | 役割 | 入力（型/主要フィールド/値範囲） | 出力（型/主要フィールド） | 例外（発生条件） |
@@ -292,6 +302,51 @@
 | 例外 | 発生場所 | 発生原因 |
 |---|---|---|
 | - | - | - |
+
+#### Class: DSLParser
+##### Method: parse
+| 引数 | 型 | 意味 | 値範囲/制約 | 必須 |
+|---|---|---|---|---|
+| graph | str | flow.graph文字列 | `>>` 連結のみ許可 | 必須 |
+
+| 戻り値 | 型 | 主要フィールド |
+|---|---|---|
+| terms | list<DSLTerm> | TaskTerm/PipeRefTerm/SwitchTerm/RepeatTerm/ForEachTerm/UntilTerm |
+
+| 例外 | 発生場所 | 発生原因 |
+|---|---|---|
+| ERR-PYOCO-0014 | DSLParser.parse | DSL構文不正 |
+
+#### Class: PipeResolver
+##### Method: resolve
+| 引数 | 型 | 意味 | 値範囲/制約 | 必須 |
+|---|---|---|---|---|
+| terms | list<DSLTerm> | 解析済みTerm列 | - | 必須 |
+| pipes | dict<str, str> | 名前付きパイプ定義 | 単一行/複数行文字列 | 必須 |
+
+| 戻り値 | 型 | 主要フィールド |
+|---|---|---|
+| expanded_terms | list<DSLTerm> | `pipe(NAME)` 展開済みTerm列 |
+
+| 例外 | 発生場所 | 発生原因 |
+|---|---|---|
+| ERR-PYOCO-0015 | PipeResolver.resolve | 未定義参照/循環参照/展開上限超過 |
+
+#### Class: DryRunValidator
+##### Method: validate
+| 引数 | 型 | 意味 | 値範囲/制約 | 必須 |
+|---|---|---|---|---|
+| terms | list<DSLTerm> | 展開済みTerm列 | - | 必須 |
+
+| 戻り値 | 型 | 主要フィールド |
+|---|---|---|
+| report | ValidationReport | errors, warnings |
+
+| 例外 | 発生場所 | 発生原因 |
+|---|---|---|
+| ERR-PYOCO-0014 | DryRunValidator.validate | DSL構文不正 |
+| ERR-PYOCO-0017 | DryRunValidator.validate | 反復設定不正 |
+| ERR-PYOCO-0018 | DryRunValidator.validate | collect不正 |
 
 #### Class: TraceBackend
 ##### Method: on_flow_start

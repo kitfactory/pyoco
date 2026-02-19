@@ -22,6 +22,7 @@ class PyocoConfig:
     version: int
     flow: Optional[FlowConfig]
     tasks: Dict[str, TaskConfig]
+    pipes: Dict[str, str] = field(default_factory=dict)
     runtime: RuntimeConfig = field(default_factory=RuntimeConfig)
 
     @classmethod
@@ -51,6 +52,14 @@ class PyocoConfig:
             flow = FlowConfig(**flow_data)
 
         tasks = {k: TaskConfig(**v) for k, v in data.get('tasks', {}).items()}
+        pipes_data = data.get("pipes", {}) or {}
+        if not isinstance(pipes_data, dict):
+            raise ValueError("Invalid config: 'pipes' must be a mapping/object.")
+        pipes: Dict[str, str] = {}
+        for name, value in pipes_data.items():
+            if not isinstance(value, str):
+                raise ValueError(f"Invalid config: pipes.{name} must be a string.")
+            pipes[name] = value
 
         if "discovery" in data:
             raise ValueError(
@@ -67,5 +76,6 @@ class PyocoConfig:
             version=data.get('version', 1),
             flow=flow,
             tasks=tasks,
+            pipes=pipes,
             runtime=runtime
         )

@@ -2,11 +2,12 @@ import time
 import uuid
 from typing import List, Optional
 from ..core.engine import Engine
-from ..core.models import RunContext, RunStatus, Flow
+from ..core.models import RunContext, RunStatus
 from ..trace.backend import TraceBackend
 from ..discovery.loader import TaskLoader
 from ..schemas.config import PyocoConfig
 from ..client import Client
+from ..dsl.graph import build_flow_from_graph
 
 from ..trace.console import ConsoleTraceBackend
 
@@ -82,20 +83,13 @@ class Worker:
             print("❌ Flow not found in local config. Add 'flow:' with 'graph:' to your flow.yaml.")
             return
 
-        # Build Flow object using exec (same as main.py)
-        from ..core.models import Flow as FlowModel
-        from ..dsl.syntax import TaskWrapper
-        
-        eval_context = {name: TaskWrapper(task) for name, task in self.loader.tasks.items()}
-        
         try:
-            flow = FlowModel(name=flow_name)
-            for t in self.loader.tasks.values():
-                flow.add_task(t)
-            
-            # Evaluate graph
-            exec(flow_def.graph, {}, eval_context)
-            
+            flow = build_flow_from_graph(
+                graph=flow_def.graph,
+                tasks=self.loader.tasks,
+                pipes=self.config.pipes,
+                flow_name=flow_name,
+            )
         except Exception as e:
             print(f"❌ Error building flow: {e}")
             return

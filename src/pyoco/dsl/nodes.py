@@ -28,6 +28,7 @@ class SubFlowNode(DSLNode):
 class RepeatNode(DSLNode):
     body: SubFlowNode
     count: Union[int, Expression]
+    collect: Optional[str] = None
 
 
 @dataclass
@@ -35,6 +36,8 @@ class ForEachNode(DSLNode):
     body: SubFlowNode
     source: Expression
     alias: Optional[str] = None
+    index_alias: Optional[str] = None
+    collect: Optional[str] = None
 
 
 @dataclass
@@ -42,6 +45,7 @@ class UntilNode(DSLNode):
     body: SubFlowNode
     condition: Expression
     max_iter: Optional[int] = None
+    collect: Optional[str] = None
 
 
 @dataclass

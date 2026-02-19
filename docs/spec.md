@@ -18,6 +18,11 @@
 | REQ-0010 | ユーザーがタスクフィルタを指定したら、対象タスクを絞り込む。 | UC-5 |
 | REQ-0011 | ユーザーが出力形式/出力先を指定したら、指定形式で出力する。 | UC-5 |
 | REQ-0012 | プラグインがタスクメタ情報を提供したら、それを支援情報に反映する。 | UC-5 |
+| REQ-0013 | ユーザーがパイプDSLを定義したら、`>>` とTerm規則でフローを構築する。 | UC-1, UC-2 |
+| REQ-0014 | ユーザーが `pipe(NAME)` を使ったら、`pipes` の定義を展開して接続する。 | UC-1, UC-2 |
+| REQ-0015 | ユーザーが `switch` を使ったら、評価値に応じたbranchを1つ実行する。 | UC-1, UC-2 |
+| REQ-0016 | ユーザーが `repeat`/`foreach`/`until` を使ったら、反復実行と集約規則で出力を返す。 | UC-1, UC-2 |
+| REQ-0017 | ユーザーが `check --dry-run` を実行したら、DSLの形式検証を行う。 | UC-1, UC-2 |
 
 ### [PYOCO-0001] ユーザーがタスクと依存関係を定義したら、Pyocoはフローを構築する。
 Given：タスク定義が用意されている  
@@ -158,6 +163,62 @@ Done：entry point 内で task_info により登録されたメタ情報が支�
 |---|---|---|---|
 | ERR-PYOCO-0013 | 必須メタ情報が欠落 | プラグイン/メタ情報を修正する | MSG-PYOCO-0015 |
 
+### [PYOCO-0013] ユーザーがパイプDSLを定義したら、`>>` とTerm規則でフローを構築する。
+Given：flow定義がある  
+When：graph文字列を読み込み解析する  
+Done：`>>` を唯一の連結演算子として解釈し、Term（Task/pipe/switch/repeat/foreach/until）を左から順に接続してFlowを構築する（`>` は未対応のため構文エラー）
+
+#### エラー分岐（REQ-0013の枝番）
+| ERR-ID | 発生条件 | ユーザーアクション | 関連MSG-ID |
+|---|---|---|---|
+| ERR-PYOCO-0001 | 定義ファイルが読めない/構文不正 | パス/形式を修正する | MSG-PYOCO-0006 |
+| ERR-PYOCO-0014 | DSL構文が不正 | graphを修正する | MSG-PYOCO-0016 |
+
+### [PYOCO-0014] ユーザーが `pipe(NAME)` を使ったら、`pipes` の定義を展開して接続する。
+Given：`pipes` に名前付きパイプが定義されている  
+When：`pipe(NAME)` を評価する  
+Done：参照先パイプをその場に展開し、前後Termと通常の `>>` 連結規則で接続する（単一行/複数行の定義を同じ規則で扱う）
+
+#### エラー分岐（REQ-0014の枝番）
+| ERR-ID | 発生条件 | ユーザーアクション | 関連MSG-ID |
+|---|---|---|---|
+| ERR-PYOCO-0015 | 未定義参照/循環参照/展開上限超過（深さ128または展開後Term数4096超過） | `pipes` 定義を修正する | MSG-PYOCO-0017 |
+
+### [PYOCO-0015] ユーザーが `switch` を使ったら、評価値に応じたbranchを1つ実行する。
+Given：`switch(on=..., cases=..., default=任意)` が定義されている  
+When：`on` の値を評価する  
+Done：一致したcase branchを1つ実行し、そのbranchの最終出力をswitch出力として返す（一致なしでdefault省略時はエラー）
+
+#### エラー分岐（REQ-0015の枝番）
+| ERR-ID | 発生条件 | ユーザーアクション | 関連MSG-ID |
+|---|---|---|---|
+| ERR-PYOCO-0014 | switchの構文（case/default表現）が不正 | graphを修正する | MSG-PYOCO-0016 |
+| ERR-PYOCO-0016 | case未一致かつdefault未定義 | switch定義を修正する | MSG-PYOCO-0018 |
+
+### [PYOCO-0016] ユーザーが `repeat`/`foreach`/`until` を使ったら、反復実行と集約規則で出力を返す。
+Given：反復Termが定義されている  
+When：反復Termを実行する  
+Done：反復種別ごとの規則でbodyを実行し、collect規則で出力を返す（既定collectは repeat=list, foreach=list, until=last。collect候補は list/last/first/flatten。`item`/`index` 名の衝突はユーザー自己管理とする）
+
+#### エラー分岐（REQ-0016の枝番）
+| ERR-ID | 発生条件 | ユーザーアクション | 関連MSG-ID |
+|---|---|---|---|
+| ERR-PYOCO-0017 | 反復設定が不正（count<0、max_iter<1、foreachのoverがiterableでない等） | 反復設定を修正する | MSG-PYOCO-0019 |
+| ERR-PYOCO-0018 | collect指定が未対応 | collectを修正する | MSG-PYOCO-0020 |
+
+### [PYOCO-0017] ユーザーが `check --dry-run` を実行したら、DSLの形式検証を行う。
+Given：flow定義がある  
+When：`check --dry-run` を実行する  
+Done：DSLの形式のみを検証する（構文、Term種別、`pipes` 参照の存在/循環/上限、switchのdefault省略警告、反復引数の形式）。式や外部データの実評価は行わない
+
+#### エラー分岐（REQ-0017の枝番）
+| ERR-ID | 発生条件 | ユーザーアクション | 関連MSG-ID |
+|---|---|---|---|
+| ERR-PYOCO-0014 | DSL構文が不正 | graphを修正する | MSG-PYOCO-0016 |
+| ERR-PYOCO-0015 | `pipe(NAME)` 参照が不正 | `pipes` 定義を修正する | MSG-PYOCO-0017 |
+| ERR-PYOCO-0017 | 反復設定の形式が不正 | 反復設定を修正する | MSG-PYOCO-0019 |
+| ERR-PYOCO-0018 | collect指定が未対応 | collectを修正する | MSG-PYOCO-0020 |
+
 ## メッセージID管理（MSG-xxxx）
 | ID | 文面テンプレ | 出力先 | 発生条件 | 関連REQ/ERR |
 |---|---|---|---|---|
@@ -173,6 +234,11 @@ Done：entry point 内で task_info により登録されたメタ情報が支�
 | MSG-PYOCO-0013 | Failed to write output: {path} | コンソール | 出力失敗 | ERR-PYOCO-0011 |
 | MSG-PYOCO-0014 | Invalid filter: {filter} | コンソール | フィルタ不正 | ERR-PYOCO-0012 |
 | MSG-PYOCO-0015 | Missing task metadata: {name} fields={fields} | コンソール | 必須メタ情報欠落 | ERR-PYOCO-0013 |
+| MSG-PYOCO-0016 | Invalid DSL syntax: {detail} | コンソール | DSL構文不正 | ERR-PYOCO-0014 |
+| MSG-PYOCO-0017 | Invalid pipe reference: {name} | コンソール | pipe参照不正 | ERR-PYOCO-0015 |
+| MSG-PYOCO-0018 | Switch no match without default: {value} | コンソール | switch未一致かつdefaultなし | ERR-PYOCO-0016 |
+| MSG-PYOCO-0019 | Invalid loop config: {detail} | コンソール | 反復設定不正 | ERR-PYOCO-0017 |
+| MSG-PYOCO-0020 | Invalid collect mode: {mode} | コンソール | collect不正 | ERR-PYOCO-0018 |
 
 ## エラーID管理（ERR-xxxx）
 | ID | 原因 | 検出条件 | ユーザーアクション | 再試行可否 | 関連MSG-ID | 関連REQ |
@@ -190,3 +256,8 @@ Done：entry point 内で task_info により登録されたメタ情報が支�
 | ERR-PYOCO-0011 | 出力失敗 | ファイル書込失敗 | パス/権限を修正する | 可 | MSG-PYOCO-0013 | REQ-0007/0008/0009/0011 |
 | ERR-PYOCO-0012 | フィルタ不正 | 未対応キー/空値 | フィルタ条件を修正する | 可 | MSG-PYOCO-0014 | REQ-0007/0008/0010 |
 | ERR-PYOCO-0013 | 必須メタ情報欠落 | name/summary/inputs/outputsの欠落 | プラグイン/メタ情報を修正する | 可 | MSG-PYOCO-0015 | REQ-0007/0008/0012 |
+| ERR-PYOCO-0014 | DSL構文不正 | `>>` 連結規則またはTerm構文に違反 | graphを修正する | 可 | MSG-PYOCO-0016 | REQ-0013/0015/0017 |
+| ERR-PYOCO-0015 | pipe参照不正 | 未定義参照/循環参照/展開上限超過（深さ128、Term数4096） | `pipes` 定義を修正する | 可 | MSG-PYOCO-0017 | REQ-0014/0017 |
+| ERR-PYOCO-0016 | switch未一致 | case未一致かつdefault未定義 | switch定義を修正する | 可 | MSG-PYOCO-0018 | REQ-0015 |
+| ERR-PYOCO-0017 | 反復設定不正 | count/max_iter/over等の設定が不正 | 反復設定を修正する | 可 | MSG-PYOCO-0019 | REQ-0016/0017 |
+| ERR-PYOCO-0018 | collect不正 | 未対応collect指定 | collectを修正する | 可 | MSG-PYOCO-0020 | REQ-0016/0017 |

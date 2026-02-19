@@ -7,6 +7,8 @@
 ## 現在地（必ず更新）
 - 現在フェーズ: P0
 - 今回スコープ（1〜5行）:
+  - パイプDSLを `>>` 固定のまま拡張し、`pipe(NAME)` / `switch` / `repeat` / `foreach` / `until` を同一Termとして扱えるようにする
+  - 新DSLの仕様方針を固定する（互換レイヤは持たず、`switch`のdefault省略時エラー、反復collect既定、`pipe`展開上限、dry-runは形式検証のみ）
   - YAMLの`discovery`設定を廃止し、タスク探索を「entry points自動ロード + 環境変数によるモジュールimport」に一本化する
   - flow.yaml を単一フロー（`flow:`）に簡略化する
   - 実行中に `cancel` が呼ばれた場合、現在タスク完了後に次タスクへ進む直前で終了する（境界キャンセル）

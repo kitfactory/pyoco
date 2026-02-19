@@ -15,6 +15,7 @@ Pyoco は、Airflow などの大規模なワークフローエンジンよりも
 - **Pure Python**: 外部サービスや重い依存関係は不要です。
 - **Minimal DAG model**: タスクと依存関係をコードで直接定義します。
 - **Task-oriented**: 読みやすく保守しやすい「小さなワークフロー」に焦点を当てています。
+- **Graph DSL controls**: `flow.yaml` で `>>` / `pipe` / `switch` / `repeat` / `foreach` / `until` を使って制御フローを記述できます。
 - **Friendly trace logs**: ターミナルからキュートな（またはプレーンな）ログで実行をステップごとに追跡できます。
 - **Parallel Execution**: 独立したタスクを自動的に並列実行します。
 - **Artifact Management**: タスクの出力やファイルを簡単に保存・管理できます。
@@ -86,6 +87,51 @@ python examples/hello_pyoco.py
 ```
 
 完全なコードは [examples/hello_pyoco.py](examples/hello_pyoco.py) を参照してください。
+
+## 🧾 flow.yaml の Graph DSL
+
+Pyoco は `flow.yaml` でもワークフローを定義できます。現行DSLは `>>` を基本に、`pipe/switch/repeat/foreach/until` を組み合わせます。
+
+```yaml
+version: 1
+
+pipes:
+  setup: "prepare >> choose_mode"
+
+tasks:
+  prepare:
+    callable: "tasks:prepare"
+  choose_mode:
+    callable: "tasks:choose_mode"
+  run_batch:
+    callable: "tasks:run_batch"
+  process_item:
+    callable: "tasks:process_item"
+  poll_status:
+    callable: "tasks:poll_status"
+  finish:
+    callable: "tasks:finish"
+
+flow:
+  defaults:
+    mode: "batch"
+    items: ["A", "B", "C"]
+    done: false
+  graph: |
+    pipe(setup)
+    >> switch(on={{mode}}){
+      batch: repeat(count=2){ run_batch };
+      default: run_batch;
+    }
+    >> foreach(over={{items}}, item=it, index=idx){ process_item }
+    >> until(cond={{params.done}}, max_iter=5){ poll_status }
+    >> finish
+```
+
+- `>>`: 逐次依存
+- `pipe(NAME)`: `pipes` で定義したパイプを参照展開
+- `switch(on=...){ ... }`: 条件に一致した分岐を1つ実行
+- `repeat` / `foreach` / `until`: 反復制御
 
 ## 🏗️ アーキテクチャ
 

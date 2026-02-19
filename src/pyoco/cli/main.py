@@ -7,10 +7,18 @@ import time
 from types import SimpleNamespace
 from ..schemas.config import PyocoConfig
 from ..discovery.loader import TaskLoader
-from ..core.models import Flow
 from ..core.engine import Engine
 from ..trace.console import ConsoleTraceBackend
 from ..client import Client
+from ..dsl.graph import (
+    GraphReferenceError,
+    GraphSyntaxError,
+    GraphValidationError,
+    build_flow_from_graph,
+    parse_graph,
+    resolve_pipe_refs,
+    validate_graph_terms,
+)
 from ..support.service import SupportInfoService
 from ..core.exceptions import (
     SupportInfoError,
@@ -315,20 +323,13 @@ def main():
                 print(f"Error submitting flow: {e}")
                 sys.exit(1)
             return
-        # Build Flow from graph string
-        from ..dsl.syntax import TaskWrapper, switch
-        eval_context = {name: TaskWrapper(task) for name, task in loader.tasks.items()}
-        eval_context["switch"] = switch
-        
         try:
-            # Create Flow and add all loaded tasks
-            flow = Flow(name="main")
-            for t in loader.tasks.values():
-                flow.add_task(t)
-            eval_context["flow"] = flow
-
-            # Evaluate graph to set up dependencies
-            exec(flow_conf.graph, {}, eval_context)
+            flow = build_flow_from_graph(
+                graph=flow_conf.graph,
+                tasks=loader.tasks,
+                pipes=config.pipes,
+                flow_name="main",
+            )
             
             # Run engine
             backend = ConsoleTraceBackend(style="cute" if args.cute else "plain")
@@ -346,7 +347,7 @@ def main():
             
             engine.run(flow, params)
             
-        except Exception as e:
+        except (GraphSyntaxError, GraphReferenceError, GraphValidationError, Exception) as e:
             print(f"Error executing flow: {e}")
             import traceback
             traceback.print_exc()
@@ -362,19 +363,20 @@ def main():
         errors = []
         warnings = []
 
-        # 1. Check imports (already done by loader.load(), but we can check for missing tasks in graph)
-        # 2. Build flow to check graph
-        from ..dsl.syntax import TaskWrapper, switch
-        eval_context = {name: TaskWrapper(task) for name, task in loader.tasks.items()}
-        eval_context["switch"] = switch
-        
+        flow = None
         try:
-            flow = Flow(name="main")
-            for t in loader.tasks.values():
-                flow.add_task(t)
-            eval_context["flow"] = flow
-            
-            exec(flow_conf.graph, {}, eval_context)
+            parsed = parse_graph(flow_conf.graph)
+            resolved = resolve_pipe_refs(parsed, config.pipes)
+            dsl_report = validate_graph_terms(resolved)
+            warnings.extend(dsl_report.warnings)
+            errors.extend(dsl_report.errors)
+
+            flow = build_flow_from_graph(
+                graph=flow_conf.graph,
+                tasks=loader.tasks,
+                pipes=config.pipes,
+                flow_name="main",
+            )
             
             # 3. Reachability / Orphans
             if len(flow.tasks) > 1:
@@ -414,10 +416,10 @@ def main():
                     if name not in t.inputs and name not in flow_conf.defaults:
                         warnings.append(f"Task '{t.name}' argument '{name}' might be missing input (not in inputs or defaults).")
 
-        except Exception as e:
+        except (GraphSyntaxError, GraphReferenceError, GraphValidationError, Exception) as e:
             errors.append(f"Graph evaluation failed: {e}")
 
-        if args.dry_run:
+        if args.dry_run and flow is not None:
             from ..dsl.validator import FlowValidator
             try:
                 validator = FlowValidator(flow)

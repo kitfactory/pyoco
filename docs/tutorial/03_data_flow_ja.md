@@ -79,4 +79,4 @@ Multiplied: 10
 The final result is: 10
 ```
 
-[次へ: 並列処理と分岐](04_parallel_ja.md)
+[次へ: 制御コンポーネント (pipe/switch/repeat/foreach/until)](04_parallel_ja.md)

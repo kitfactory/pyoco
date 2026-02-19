@@ -1,5 +1,7 @@
 import threading
 import time
+import sys
+from pathlib import Path
 
 import pytest
 from socketless_http import reset_ipc_state, switch_to_ipc_connection
@@ -10,6 +12,9 @@ from pyoco.schemas.config import PyocoConfig
 from pyoco.worker.runner import Worker
 
 SOCKETLESS_URL = "http://testserver"
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
 
 @pytest.fixture(scope="module", autouse=True)

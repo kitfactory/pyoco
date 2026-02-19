@@ -1,5 +1,8 @@
+import pytest
+
 from pyoco import Flow, task
 from pyoco.core.engine import Engine
+from pyoco.core.exceptions import SwitchNoMatch
 from pyoco.dsl.syntax import switch
 
 
@@ -45,3 +48,16 @@ def test_switch_falls_back_to_default():
     engine.run(flow, params={"flag": "Z"})
 
     assert events == ["default"]
+
+
+def test_switch_without_default_raises():
+    @task
+    def branch_a(ctx):
+        return "A"
+
+    flow = Flow("switch_no_default")
+    flow >> switch("$ctx.params.flag")[("A" >> branch_a)]
+
+    engine = Engine()
+    with pytest.raises(SwitchNoMatch):
+        engine.run(flow, params={"flag": "Z"})

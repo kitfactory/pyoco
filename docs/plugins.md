@@ -1,4 +1,4 @@
-# Pyoco Plug-in Guide (v0.6.0)
+# Pyoco Plug-in Guide (v0.7.0)
 
 Pyoco keeps its core small and lets domain packages extend it via Python entry points. Any package can advertise additional tasks under the `pyoco.tasks` group; pyoco discovers and registers them automatically at startup.
 

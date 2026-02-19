@@ -79,4 +79,4 @@ Multiplied: 10
 The final result is: 10
 ```
 
-[Next: Parallelism & Branching](04_parallel.md)
+[Next: Control Components (pipe/switch/repeat/foreach/until)](04_parallel.md)

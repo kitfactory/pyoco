@@ -1,75 +1,112 @@
-# 4. 並列処理と分岐
+# 4. 制御コンポーネント (pipe / switch / repeat / foreach / until)
 
-この章では、タスクを並列に実行する方法と、分岐ロジックを扱う方法を学びます。
+この章では、現在の graph DSL で使える制御コンポーネントを学びます。
 
 ## 目標
-- `&` を使用して独立したタスクを同時実行する。
-- `|` を使用して分岐ロジックを定義する。
+- `pipe(NAME)` でパイプ断片を再利用する。
+- `switch(on=...){ ... }` で1つの分岐を選択する。
+- `repeat` / `foreach` / `until` で反復処理を定義する。
 
-## 1. 並列実行
-歯磨きと洗顔を同時に行う（マルチタスクが得意なら！）朝のルーチンをシミュレートしてみましょう。
+## 1. タスクの定義 (`tasks.py`)
 
-### `tasks.py`
 ```python
 from pyoco.dsl.syntax import task
-import time
 
 @task
-def brush_teeth(ctx):
-    print("Brushing teeth...")
-    time.sleep(1)
-    return "teeth clean"
+def prepare(ctx):
+    print("prepare")
+    return "ok"
 
 @task
-def wash_face(ctx):
-    print("Washing face...")
-    time.sleep(1)
-    return "face clean"
+def choose_mode(ctx):
+    return ctx.params.get("mode", "batch")
 
 @task
-def breakfast(ctx):
-    print("Eating breakfast...")
-    return "full"
+def run_batch(ctx):
+    count = ctx.params.get("batch_count", 0) + 1
+    ctx.params["batch_count"] = count
+    print(f"batch run: {count}")
+    return count
+
+@task
+def process_item(ctx):
+    item = ctx.get_var("it")
+    index = ctx.get_var("idx")
+    line = f"{index}:{item}"
+    ctx.params.setdefault("processed", []).append(line)
+    print(f"item: {line}")
+    return line
+
+@task
+def poll_status(ctx):
+    polls = ctx.params.get("polls", 0) + 1
+    ctx.params["polls"] = polls
+    if polls >= 2:
+        ctx.params["done"] = True
+    print(f"poll: {polls}")
+    return polls
+
+@task
+def finish(ctx):
+    print("finish")
+    return {
+        "batch_count": ctx.params.get("batch_count", 0),
+        "processed": ctx.params.get("processed", []),
+        "polls": ctx.params.get("polls", 0),
+    }
 ```
 
-### `flow.yaml`
+## 2. フロー設定 (`flow.yaml`)
+
 ```yaml
 version: 1
 
+pipes:
+  setup: "prepare >> choose_mode"
+
 tasks:
-  brush_teeth:
-    callable: "tasks:brush_teeth"
-  wash_face:
-    callable: "tasks:wash_face"
-  breakfast:
-    callable: "tasks:breakfast"
+  prepare:
+    callable: "tasks:prepare"
+  choose_mode:
+    callable: "tasks:choose_mode"
+  run_batch:
+    callable: "tasks:run_batch"
+  process_item:
+    callable: "tasks:process_item"
+  poll_status:
+    callable: "tasks:poll_status"
+  finish:
+    callable: "tasks:finish"
+    outputs:
+      - "params.summary"
 
 flow:
+  defaults:
+    mode: "batch"
+    items: ["A", "B", "C"]
+    done: false
   graph: |
-    (brush_teeth & wash_face) >> breakfast
+    pipe(setup)
+    >> switch(on={{mode}}){
+      batch: repeat(count=2){ run_batch };
+      default: run_batch;
+    }
+    >> foreach(over={{items}}, item=it, index=idx){ process_item }
+    >> until(cond={{params.done}}, max_iter=5){ poll_status }
+    >> finish
 ```
 
-- `(A & B)`: 並列グループを定義します。両方のタスクが同時に開始されます。
-- `>> C`: タスク C は、A と B の **両方** が完了するのを待ちます。
+- `pipe(setup)`: `pipes.setup` をその場で展開して接続します。
+- `switch(on={{mode}}){ ... }`: 一致した分岐を1つだけ実行します。
+- `repeat(count=2){ ... }`: 本文を固定回数だけ実行します。
+- `foreach(over={{items}}, item=it, index=idx){ ... }`: リスト要素をエイリアス付きで反復します。
+- `until(cond={{params.done}}, max_iter=5){ ... }`: 条件が真になるまで反復します。
 
-## 2. 分岐 (OR-Join)
-場合によっては、前のタスクのいずれか1つが成功すれば次に進みたいことがあります。
+## 3. チェックと実行
 
-```yaml
-flow:
-  graph: |
-    (brush_teeth | wash_face) >> breakfast
-```
-
-- `(A | B)`: 分岐を定義します。
-- `>> C`: タスク C は、A または B の **いずれか** が完了するのを待ちます。これは「早い者勝ち」やオプションパスのシナリオで役立ちます。
-
-## 3. 実行
-並列フローを実行します。
 ```bash
-pyoco run --config flow.yaml --cute
+pyoco check --config flow.yaml --dry-run
+pyoco run --config flow.yaml
 ```
-
-かわいいトレース出力で、タスクが一緒に実行されているのが確認できるはずです！
 
 [次へ: アーティファクトと保存](05_artifacts_ja.md)

@@ -4,7 +4,7 @@ import traceback
 from typing import Dict, Any, List, Set, Optional
 from .models import Flow, Task, RunContext, TaskState, RunStatus
 from .context import Context, LoopFrame
-from .exceptions import UntilMaxIterationsExceeded
+from .exceptions import SwitchNoMatch, UntilMaxIterationsExceeded
 from .log_capture import RunLogCapture
 from ..trace.backend import TraceBackend
 from ..trace.console import ConsoleTraceBackend
@@ -392,11 +392,15 @@ class Engine:
             ctx.push_loop(frame)
             if node.alias:
                 ctx.set_var(node.alias, item)
+            if node.index_alias:
+                ctx.set_var(node.index_alias, index)
             try:
                 self._execute_subflow(node.body, ctx, log_capture)
             finally:
                 if node.alias:
                     ctx.clear_var(node.alias)
+                if node.index_alias:
+                    ctx.clear_var(node.index_alias)
                 ctx.pop_loop()
 
     def _execute_until(self, node: UntilNode, ctx: Context, log_capture: Optional[RunLogCapture] = None):
@@ -440,6 +444,8 @@ class Engine:
                 return
         if default_case:
             self._execute_subflow(default_case.target, ctx, log_capture)
+            return
+        raise SwitchNoMatch(node.expression.source)
     def _resolve_repeat_count(self, count_value, ctx: Context) -> int:
         if isinstance(count_value, Expression):
             resolved = self._eval_expression(count_value, ctx)

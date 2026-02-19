@@ -2,7 +2,7 @@ version: 1
 
 flow:
   graph: |
-    A >> (B & C)
+    A >> B >> C
   defaults:
     x: 10
 tasks:

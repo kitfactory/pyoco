@@ -15,6 +15,7 @@ It is ideal for small jobs, development environments, and personal projects wher
 - **Pure Python**: No external services or heavy dependencies required.
 - **Minimal DAG model**: Tasks and dependencies are defined directly in code.
 - **Task-oriented**: Focus on "small workflows" that should be easy to read and maintain.
+- **Graph DSL controls**: `>>` pipeline + `pipe/switch/repeat/foreach/until` for branching and loops in `flow.yaml`.
 - **Friendly trace logs**: Runs can be traced step by step from the terminal with cute (or plain) logs.
 - **Parallel Execution**: Automatically runs independent tasks in parallel.
 - **Artifact Management**: Easily save and manage task outputs and files.
@@ -86,6 +87,51 @@ Output:
 ```
 
 See [examples/hello_pyoco.py](examples/hello_pyoco.py) for the full code.
+
+## 🧾 flow.yaml Graph DSL
+
+Pyoco also supports workflow definition in `flow.yaml` with a `>>`-based graph DSL.
+
+```yaml
+version: 1
+
+pipes:
+  setup: "prepare >> choose_mode"
+
+tasks:
+  prepare:
+    callable: "tasks:prepare"
+  choose_mode:
+    callable: "tasks:choose_mode"
+  run_batch:
+    callable: "tasks:run_batch"
+  process_item:
+    callable: "tasks:process_item"
+  poll_status:
+    callable: "tasks:poll_status"
+  finish:
+    callable: "tasks:finish"
+
+flow:
+  defaults:
+    mode: "batch"
+    items: ["A", "B", "C"]
+    done: false
+  graph: |
+    pipe(setup)
+    >> switch(on={{mode}}){
+      batch: repeat(count=2){ run_batch };
+      default: run_batch;
+    }
+    >> foreach(over={{items}}, item=it, index=idx){ process_item }
+    >> until(cond={{params.done}}, max_iter=5){ poll_status }
+    >> finish
+```
+
+- `>>`: sequential dependency
+- `pipe(NAME)`: inline expansion from top-level `pipes`
+- `switch(on=...){ ... }`: single-branch selection
+- `repeat` / `foreach` / `until`: control loops
 
 ## 🏗️ Architecture
 

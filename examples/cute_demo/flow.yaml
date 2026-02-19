@@ -26,14 +26,9 @@ flow:
   defaults:
     spice_level: "hot"
   graph: |
-    # Ingredients -> Chop
-    # Water -> Boil
-    # (Chop & Boil) -> Curry
-    # Rice (parallel to curry)
-    # (Curry & Rice) -> Serve
-    
-    gather_ingredients >> chop_vegetables
-    
-    (chop_vegetables & boil_water) >> make_curry
-    
-    (make_curry & cook_rice) >> serve
+    gather_ingredients
+    >> chop_vegetables
+    >> boil_water
+    >> make_curry
+    >> cook_rice
+    >> serve
