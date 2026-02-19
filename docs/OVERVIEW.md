@@ -17,7 +17,7 @@
   - `run` と `check` の graph 評価規則を一致させる
   - 旧実装コメント/`pass` の整理で保守性を改善する（I/Fは維持）
 - 非ゴール（やらないこと）:
-  - server/worker/observability はアーカイブ扱いで対象外
+  - server/worker/observability は本リポジトリの対象外（分散実行は `pyoco-server` を参照）
 - 重要リンク:
   - concept: `./concept.md`
   - spec: `./spec.md`

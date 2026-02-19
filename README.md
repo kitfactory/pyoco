@@ -172,6 +172,25 @@ pyoco run --non-cute ...
 Observability and server-related docs are archived and out of scope for the current requirements.  
 See `docs/archive/observability.md` and `docs/archive/roadmap.md`.
 
+## 🌐 Distributed Execution with `pyoco-server`
+
+`pyoco` focuses on local/single-machine workflow execution.  
+If you need distributed workers, queueing, and remote run management, use the companion package **`pyoco-server`**.
+
+- Package: `pyoco-server`
+- Role: NATS/JetStream-based distributed execution backend for Pyoco
+- CLIs: `pyoco-server`, `pyoco-worker`, `pyoco-client`, `pyoco-server-admin`
+- Repository: <https://github.com/kitfactory/pyoco-server>
+
+Typical flow:
+1. Start server: `pyoco-server up`
+2. Start worker(s): `pyoco-worker --tags ...`
+3. Submit and monitor runs: `pyoco-client submit-yaml`, `pyoco-client watch`
+
+Compatibility note:
+- `pyoco-server 0.5.x` depends on `pyoco >= 0.6.2`
+- Recommended pairing: `pyoco 0.7.x` + `pyoco-server 0.5.x`
+
 ## 🧩 Plug-ins
 
 Need to share domain-specific tasks? Publish an entry point under `pyoco.tasks` and pyoco will auto-load it. We recommend **Task subclasses first** (callables still work with warnings). See [docs/plugins.md](docs/plugins.md) for examples, quickstart, and `pyoco plugins list` / `pyoco plugins lint`.

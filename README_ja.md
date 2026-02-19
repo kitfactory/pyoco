@@ -172,6 +172,25 @@ pyoco run --non-cute ...
 観測・サーバー関連のドキュメントはアーカイブ済みで、現在の要件対象外です。  
 `docs/archive/observability.md` と `docs/archive/roadmap.md` を参照してください。
 
+## 🌐 分散実行は `pyoco-server` を利用
+
+`pyoco` 本体はローカル/単一マシン実行を主対象にしています。  
+複数ワーカーでの分散実行、キューイング、リモート実行管理が必要な場合は、姉妹ライブラリ **`pyoco-server`** を利用してください。
+
+- パッケージ名: `pyoco-server`
+- 役割: Pyoco向け NATS/JetStream ベース分散実行バックエンド
+- CLI: `pyoco-server`, `pyoco-worker`, `pyoco-client`, `pyoco-server-admin`
+- リポジトリ: <https://github.com/kitfactory/pyoco-server>
+
+導入の流れ:
+1. サーバー起動: `pyoco-server up`
+2. ワーカー起動: `pyoco-worker --tags ...`
+3. 実行投入・監視: `pyoco-client submit-yaml`, `pyoco-client watch`
+
+互換メモ:
+- `pyoco-server 0.5.x` は `pyoco >= 0.6.2` に依存
+- 推奨組み合わせ: `pyoco 0.7.x` + `pyoco-server 0.5.x`
+
 ## 🧩 プラグイン
 
 `pyoco.tasks` エントリポイントに Hook (`def register_tasks(registry): ...`) を公開すると、Pyoco が自動でタスクをロードします。**Task サブクラス優先** を推奨します（callable も動きますが警告対象）。`docs/plugins.md` に `PluginRegistry` の使い方、`pyproject.toml` 設定例、`pyoco plugins list` / `pyoco plugins lint` の説明を掲載しています。
