@@ -23,9 +23,11 @@ def test_task_info_registration_defaults_origin():
         summary="summary",
         inputs=[{"name": "x", "type": "str", "required": True}],
         outputs=[{"name": "y", "type": "str", "required": False}],
+        usage="Use task_a in your flow with input x.",
     )
     assert "task_a" in registry.task_infos
     assert registry.task_infos["task_a"].origin == "demo"
+    assert registry.task_infos["task_a"].usage == "Use task_a in your flow with input x."
     assert "task_a" in loader.task_infos
 
 

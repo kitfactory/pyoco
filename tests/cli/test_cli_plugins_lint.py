@@ -11,6 +11,7 @@ def test_cli_plugins_lint_success(capsys):
             "module": "pkg.module",
             "value": "pkg.module:hook",
             "tasks": [{"name": "foo", "origin": "task_class", "warnings": [], "class": "VisionTask"}],
+            "task_infos": [{"name": "foo", "usage": "Use foo in flow.yaml as tasks.foo.callable."}],
             "warnings": [],
         }
     ]
@@ -36,3 +37,23 @@ def test_cli_plugins_lint_failure_json():
          pytest.raises(SystemExit) as excinfo:
         main()
     assert excinfo.value.code == 1
+
+
+def test_cli_plugins_lint_fails_when_usage_is_missing(capsys):
+    reports = [
+        {
+            "name": "demo",
+            "module": "pkg.module",
+            "value": "pkg.module:hook",
+            "tasks": [{"name": "foo", "origin": "task_class", "warnings": [], "class": "VisionTask"}],
+            "task_infos": [{"name": "foo", "summary": "task summary"}],
+            "warnings": [],
+        }
+    ]
+    with patch("pyoco.cli.main._collect_plugin_reports", return_value=reports), \
+         patch("sys.argv", ["pyoco", "plugins", "lint"]), \
+         pytest.raises(SystemExit) as excinfo:
+        main()
+    assert excinfo.value.code == 1
+    output = capsys.readouterr().out
+    assert "usage description missing" in output

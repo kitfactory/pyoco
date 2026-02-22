@@ -1,6 +1,10 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "pyoco"
-version = "0.7.0"
+version = "0.7.1"
 description = "A workflow engine with sugar syntax"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -11,6 +15,9 @@ dependencies = [
     "httpx>=0.24.0",
     "prometheus-client>=0.20.0",
 ]
+
+[project.scripts]
+pyoco = "pyoco.cli.main:main"
 
 [dependency-groups]
 dev = [

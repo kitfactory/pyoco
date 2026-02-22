@@ -172,7 +172,9 @@ def main():
                     print("Discovered plug-ins:")
                     for info in reports:
                         mod = info.get("module") or info.get("value")
-                        print(f" - {info.get('name')} ({mod})")
+                        version = info.get("version")
+                        label = f"{info.get('name')}@{version}" if version else info.get("name")
+                        print(f" - {label} ({mod})")
                         if info.get("error"):
                             print(f"     ⚠️  error: {info['error']}")
                             continue
@@ -193,6 +195,11 @@ def main():
                 for task in info.get("tasks", []):
                     for warn in task.get("warnings", []):
                         issues.append(f"{prefix}.{task['name']}: {warn}")
+                    if not _has_usage_description(info, task.get("name")):
+                        issues.append(
+                            f"{prefix}.{task['name']}: usage description missing "
+                            "(set registry.task_info(..., usage='...'))"
+                        )
             payload = {"issues": issues, "reports": reports}
             if getattr(args, "json", False):
                 print(json.dumps(payload, indent=2))
@@ -474,6 +481,19 @@ def _build_support_filters(args):
     if getattr(args, "tag", None):
         filters["tag"] = args.tag
     return filters
+
+
+def _has_usage_description(report: dict, task_name: str) -> bool:
+    if not task_name:
+        return False
+    for info in report.get("task_infos", []):
+        name = info.get("name") if isinstance(info, dict) else getattr(info, "name", None)
+        if name != task_name:
+            continue
+        usage = info.get("usage") if isinstance(info, dict) else getattr(info, "usage", None)
+        if isinstance(usage, str) and usage.strip():
+            return True
+    return False
 
 
 def _print_support_error(exc: SupportInfoError) -> None:

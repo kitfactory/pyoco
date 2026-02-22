@@ -261,6 +261,7 @@ class TaskInfo:
     summary: str
     inputs: List[TaskIO]
     outputs: List[TaskIO]
+    usage: Optional[str] = None
     origin: Optional[str] = None
     tags: Optional[List[str]] = None
 

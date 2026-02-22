@@ -161,6 +161,7 @@ def test_cli_plugins_list(capsys):
     plugin_reports = [
         {
             "name": "demo",
+            "version": "0.1.0",
             "module": "pkg.module",
             "value": "pkg.module:hook",
             "tasks": [
@@ -173,5 +174,5 @@ def test_cli_plugins_list(capsys):
          patch("sys.argv", ["pyoco", "plugins", "list"]):
         main()
         output = capsys.readouterr().out
-        assert "demo" in output
+        assert "demo@0.1.0" in output
         assert "foo" in output

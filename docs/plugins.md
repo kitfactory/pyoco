@@ -1,4 +1,4 @@
-# Pyoco Plug-in Guide (v0.7.0)
+# Pyoco Plug-in Guide (v0.7.1)
 
 Pyoco keeps its core small and lets domain packages extend it via Python entry points. Any package can advertise additional tasks under the `pyoco.tasks` group; pyoco discovers and registers them automatically at startup.
 
@@ -57,6 +57,7 @@ pyoco-awesome/
 1. `uv pip install -e .` でプラグインを開発環境にインストール。
 2. `pyoco plugins list --json` で検出を確認し、各タスクの `origin` が `task_class` になっているかチェック。
 3. `pyoco plugins lint` を実行し、警告が出ないことを確認（callable 経由で登録するとここで警告されます）。
+   - Each registered task must provide a usage description via `registry.task_info(..., usage=\"...\")`; otherwise lint fails.
 
 プラグイン側の pytest 例:
 
@@ -105,6 +106,7 @@ def test_register_tasks():
 | `registry.add(obj, name=None)` | Accepts an existing `Task` or `TaskWrapper`. Useful when plug-ins reuse flows/dsl fragments. |
 
 All registered tasks appear inside `TaskLoader.tasks` and obey explicit-config overrides (inputs/outputs) when names match.
+For lint compliance, pair each task with `registry.task_info(..., usage=\"...\")` so users can see how to use it.
 
 ## Inspecting plug-ins
 

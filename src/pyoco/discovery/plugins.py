@@ -22,12 +22,20 @@ def iter_entry_points(group: str = "pyoco.tasks"):
     return list(eps.get(group, []))
 
 
+def entry_point_version(entry_point: Any) -> Optional[str]:
+    dist = getattr(entry_point, "dist", None)
+    if dist is None:
+        return None
+    return getattr(dist, "version", None)
+
+
 def list_available_plugins() -> List[Dict[str, Any]]:
     plugins = []
     for ep in iter_entry_points():
         plugins.append(
             {
                 "name": ep.name,
+                "version": entry_point_version(ep),
                 "module": getattr(ep, "module", ""),
                 "value": ep.value,
             }
@@ -51,6 +59,7 @@ class PluginRegistry:
         summary: Optional[str] = None,
         inputs: Optional[List[Any]] = None,
         outputs: Optional[List[Any]] = None,
+        usage: Optional[str] = None,
         tags: Optional[List[str]] = None,
         origin: Optional[str] = None,
     ) -> None:
@@ -75,6 +84,7 @@ class PluginRegistry:
             summary=summary,
             inputs=task_inputs,
             outputs=task_outputs,
+            usage=usage,
             origin=origin or self.provider_name,
             tags=tags or [],
         )

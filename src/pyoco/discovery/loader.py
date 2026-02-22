@@ -1,9 +1,10 @@
 import importlib
 import os
+from dataclasses import asdict, is_dataclass
 from typing import Dict, List, Any, Set
 from ..core.models import Task
 from ..dsl.syntax import TaskWrapper
-from .plugins import PluginRegistry, iter_entry_points
+from .plugins import PluginRegistry, entry_point_version, iter_entry_points
 
 class TaskLoader:
     def __init__(self, config: Any, strict: bool = False):
@@ -82,6 +83,7 @@ class TaskLoader:
         for ep in entries:
             info = {
                 "name": ep.name,
+                "version": entry_point_version(ep),
                 "value": ep.value,
                 "module": getattr(ep, "module", ""),
                 "tasks": [],
@@ -94,7 +96,7 @@ class TaskLoader:
                     raise TypeError("Entry point must be callable")
                 hook(registry)
                 info["tasks"] = list(registry.records)
-                info["task_infos"] = list(registry.task_infos.values())
+                info["task_infos"] = [self._serialize_task_info(item) for item in registry.task_infos.values()]
                 info["warnings"] = list(registry.warnings)
                 if not registry.records:
                     info["warnings"].append("no tasks registered")
@@ -104,6 +106,13 @@ class TaskLoader:
                     raise
                 print(f"Warning: Plugin '{ep.name}' failed to load: {exc}")
             self.plugin_reports.append(info)
+
+    def _serialize_task_info(self, task_info: Any) -> Dict[str, Any]:
+        if is_dataclass(task_info):
+            return asdict(task_info)
+        if isinstance(task_info, dict):
+            return task_info
+        return {"name": getattr(task_info, "name", "<unknown>")}
 
     def _scan_module(self, module: Any):
         for name, obj in vars(module).items():
