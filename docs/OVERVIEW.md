@@ -16,6 +16,12 @@
   - 参照式（`$node/$ctx.params/$env`）の誤記を、内容が分かる例外で早期検出する
   - `run` と `check` の graph 評価規則を一致させる
   - 旧実装コメント/`pass` の整理で保守性を改善する（I/Fは維持）
+  - flow.graph で `node_name: task_ref` を許可し、同一 task 定義を複数ノードとして利用できるようにする
+  - Context / trace / run state で名前付きノードをノード名単位に観測できるようにする
+  - flow.yaml の `tasks.<local>.use` で plug-in 公開名をローカル task 名へ束ねられるようにする
+  - README / tutorial / guide を `use` 正規ルート + `namespace/task_name` 推奨へ揃える
+  - README / tutorial の入口文書を、楽しく試しやすい導線と現在の推奨モデルが両立する形へ整える
+  - plug-in 形式が `pyoco-server` 配布と相性が良いことを docs で説明し、分散実行時の価値を明確化する
 - 非ゴール（やらないこと）:
   - server/worker/observability は本リポジトリの対象外（分散実行は `pyoco-server` を参照）
 - 重要リンク:

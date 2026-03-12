@@ -6,6 +6,18 @@ from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 from ..core.models import Flow, Task
 from .expressions import ensure_expression
+from .graph_terms import (
+    ForEachTerm,
+    GraphValidationReport,
+    PipeRefTerm,
+    Pipeline,
+    RepeatTerm,
+    SwitchCase,
+    SwitchTerm,
+    TaskTerm,
+    Term,
+    UntilTerm,
+)
 from .nodes import (
     CaseNode,
     DEFAULT_CASE_VALUE,
@@ -41,83 +53,6 @@ class Token:
     kind: str
     value: str
     pos: int
-
-
-@dataclass
-class Pipeline:
-    terms: List["Term"] = field(default_factory=list)
-
-
-class Term:
-    pass
-
-
-@dataclass
-class TaskTerm(Term):
-    name: str
-
-
-@dataclass
-class PipeRefTerm(Term):
-    name: str
-
-
-@dataclass
-class SwitchCase:
-    value: str
-    branch: Pipeline
-
-
-@dataclass
-class SwitchTerm(Term):
-    on: str
-    cases: List[SwitchCase] = field(default_factory=list)
-    default: Optional[Pipeline] = None
-
-
-@dataclass
-class RepeatTerm(Term):
-    count: str
-    collect: Optional[str]
-    body: Pipeline
-
-
-@dataclass
-class ForEachTerm(Term):
-    over: str
-    item: Optional[str]
-    index: Optional[str]
-    collect: Optional[str]
-    body: Pipeline
-
-
-@dataclass
-class UntilTerm(Term):
-    cond: str
-    max_iter: Optional[str]
-    collect: Optional[str]
-    body: Pipeline
-
-
-@dataclass
-class GraphValidationReport:
-    warnings: List[str] = field(default_factory=list)
-    errors: List[str] = field(default_factory=list)
-
-    @property
-    def status(self) -> str:
-        if self.errors:
-            return "error"
-        if self.warnings:
-            return "warning"
-        return "ok"
-
-    def to_dict(self) -> Dict[str, object]:
-        return {
-            "status": self.status,
-            "warnings": list(self.warnings),
-            "errors": list(self.errors),
-        }
 
 
 class GraphLexer:
@@ -254,6 +189,8 @@ class GraphParser:
         token = self._peek()
         if token.kind != "IDENT":
             raise GraphSyntaxError(f"Expected term at position {token.pos}, got '{token.kind}'.")
+        if self._peek(1).kind == "COLON":
+            return self._parse_named_task()
         ident = token.value
         if self._peek(1).kind == "LPAREN":
             if ident == "pipe":
@@ -269,6 +206,17 @@ class GraphParser:
             raise GraphSyntaxError(f"Unknown callable term '{ident}' at position {token.pos}.")
         self._advance()
         return TaskTerm(name=ident)
+
+    def _parse_named_task(self) -> TaskTerm:
+        node_name = self._expect("IDENT").value
+        self._expect("COLON")
+        task_name = self._expect("IDENT").value
+        if self._peek().kind == "LPAREN":
+            token = self._peek()
+            raise GraphSyntaxError(
+                f"Named task '{node_name}' must reference a task term, got callable form at position {token.pos}."
+            )
+        return TaskTerm(name=task_name, node_name=node_name)
 
     def _parse_pipe_ref(self) -> PipeRefTerm:
         self._expect_ident("pipe")
@@ -657,34 +605,39 @@ def build_flow_from_graph(
 ) -> Flow:
     parsed = parse_graph(graph)
     resolved = resolve_pipe_refs(parsed, pipes or {})
-    fragment = _compile_pipeline(resolved, tasks)
+    fragment = _compile_pipeline(resolved, tasks, {})
     flow = Flow(name=flow_name)
     flow >> fragment
     return flow
 
 
-def _compile_pipeline(pipeline: Pipeline, tasks: Dict[str, Task]) -> FlowFragment:
+def _compile_pipeline(
+    pipeline: Pipeline,
+    tasks: Dict[str, Task],
+    compiled_nodes: Dict[str, Task],
+) -> FlowFragment:
     if not pipeline.terms:
         raise GraphValidationError("Empty pipeline is not allowed.")
-    fragment = _compile_term(pipeline.terms[0], tasks)
+    fragment = _compile_term(pipeline.terms[0], tasks, compiled_nodes)
     for term in pipeline.terms[1:]:
-        fragment = fragment >> _compile_term(term, tasks)
+        fragment = fragment >> _compile_term(term, tasks, compiled_nodes)
     return fragment
 
 
-def _compile_term(term: Term, tasks: Dict[str, Task]) -> FlowFragment:
+def _compile_term(term: Term, tasks: Dict[str, Task], compiled_nodes: Dict[str, Task]) -> FlowFragment:
     if isinstance(term, TaskTerm):
-        task = tasks.get(term.name)
-        if task is None:
+        base_task = tasks.get(term.name)
+        if base_task is None:
             raise GraphReferenceError(f"Task not found: {term.name}")
+        task = _compile_task_term(term, base_task, compiled_nodes)
         return TaskWrapper(task)
     if isinstance(term, SwitchTerm):
-        return _compile_switch(term, tasks)
+        return _compile_switch(term, tasks, compiled_nodes)
     if isinstance(term, RepeatTerm):
         return FlowFragment(
             [
                 RepeatNode(
-                    body=_compile_pipeline(term.body, tasks).to_subflow(),
+                    body=_compile_pipeline(term.body, tasks, compiled_nodes).to_subflow(),
                     count=_compile_repeat_count(term.count),
                     collect=_compile_collect(term.collect, default="list"),
                 )
@@ -694,7 +647,7 @@ def _compile_term(term: Term, tasks: Dict[str, Task]) -> FlowFragment:
         return FlowFragment(
             [
                 ForEachNode(
-                    body=_compile_pipeline(term.body, tasks).to_subflow(),
+                    body=_compile_pipeline(term.body, tasks, compiled_nodes).to_subflow(),
                     source=ensure_expression(_compile_expression(term.over, default_to_params=True)),
                     alias=term.item,
                     index_alias=term.index,
@@ -706,7 +659,7 @@ def _compile_term(term: Term, tasks: Dict[str, Task]) -> FlowFragment:
         return FlowFragment(
             [
                 UntilNode(
-                    body=_compile_pipeline(term.body, tasks).to_subflow(),
+                    body=_compile_pipeline(term.body, tasks, compiled_nodes).to_subflow(),
                     condition=ensure_expression(_compile_expression(term.cond, default_to_params=False)),
                     max_iter=_compile_max_iter(term.max_iter),
                     collect=_compile_collect(term.collect, default="last"),
@@ -716,14 +669,43 @@ def _compile_term(term: Term, tasks: Dict[str, Task]) -> FlowFragment:
     raise GraphValidationError(f"Unsupported term type: {type(term).__name__}")
 
 
-def _compile_switch(term: SwitchTerm, tasks: Dict[str, Task]) -> FlowFragment:
+def _compile_task_term(term: TaskTerm, base_task: Task, compiled_nodes: Dict[str, Task]) -> Task:
+    runtime_name = term.node_name or base_task.name
+    existing = compiled_nodes.get(runtime_name)
+    if term.node_name is None:
+        if existing is None:
+            compiled_nodes[runtime_name] = base_task
+            return base_task
+        if existing is base_task:
+            return base_task
+        raise GraphValidationError(f"Duplicate node name: {runtime_name}")
+
+    if existing is not None:
+        raise GraphValidationError(f"Duplicate node name: {runtime_name}")
+
+    node_task = Task(
+        func=base_task.func,
+        name=runtime_name,
+        inputs=dict(base_task.inputs),
+        outputs=list(base_task.outputs),
+        parallel_group=base_task.parallel_group,
+        fail_policy=base_task.fail_policy,
+        retries=base_task.retries,
+        timeout_sec=base_task.timeout_sec,
+        trigger_policy=base_task.trigger_policy,
+    )
+    compiled_nodes[runtime_name] = node_task
+    return node_task
+
+
+def _compile_switch(term: SwitchTerm, tasks: Dict[str, Task], compiled_nodes: Dict[str, Task]) -> FlowFragment:
     cases: List[CaseNode] = []
     for case in term.cases:
-        branch = _compile_pipeline(case.branch, tasks).to_subflow()
+        branch = _compile_pipeline(case.branch, tasks, compiled_nodes).to_subflow()
         value = _compile_case_value(case.value)
         cases.append(CaseNode(value=value, target=branch))
     if term.default is not None:
-        default_branch = _compile_pipeline(term.default, tasks).to_subflow()
+        default_branch = _compile_pipeline(term.default, tasks, compiled_nodes).to_subflow()
         cases.append(CaseNode(value=DEFAULT_CASE_VALUE, target=default_branch))
     if not cases:
         raise GraphValidationError("switch must define at least one case.")

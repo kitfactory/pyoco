@@ -1,13 +1,13 @@
 # 6. Advanced: Error Handling
 
-In this chapter, you will learn how to make your workflows robust against failures.
+This chapter is about making the flow behave well on a bad day. Real workflows fail, stall, or wobble; retries and limits are how you keep them useful.
 
-## Goal
+## 🎯 Goal
 - Configure retries for flaky tasks.
 - Set timeouts for long-running tasks.
 - Use failure policies (`fail_policy`).
 
-## 1. Retries
+## 🔁 1. Retries
 If a task fails (raises an exception), Pyoco can automatically retry it.
 
 ```python
@@ -26,7 +26,7 @@ tasks:
     retries: 3
 ```
 
-## 2. Timeouts
+## ⏱️ 2. Timeouts
 You can limit how long a task is allowed to run.
 
 ```python
@@ -36,7 +36,7 @@ def long_job(ctx):
     time.sleep(10) # This will fail!
 ```
 
-## 3. Failure Policies
+## 🧯 3. Failure Policies
 By default, if a task fails, the entire flow stops (`fail_policy="stop"`).
 You can change this to `isolate` to allow independent tasks to continue.
 
@@ -53,4 +53,4 @@ If `non_critical_task` fails:
 This is useful for optional steps or parallel processing where one failure shouldn't crash the whole pipeline.
 
 ---
-**Congratulations!** You have completed the Pyoco tutorial. You are now ready to build complex, robust, and cute workflows!
+**Nice.** You now have the pieces for flows that are small, expressive, and resilient enough for real work. If you skipped Chapter 7 earlier, that is the best place to align this with the plug-in-first model.

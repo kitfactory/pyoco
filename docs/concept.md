@@ -2,7 +2,7 @@
 #1.概要（Overview）（先頭固定）
 - 作るもの（What）：Python製の最小DAG実行ライブラリ（Pyoco）
 - 解決すること（Why）：小規模ワークフローを簡単に定義・実行し、手作業の手順を再現可能にする
-- できること（主要機能の要約）：パイプDSL定義（`>>`/`pipe`/`switch`/`repeat`/`foreach`/`until`）、依存解決と実行、並列実行、タスク間データ受け渡し、コンソールでの実行トレース、LLM向け支援情報の生成（タスク一覧/詳細/flow.yamlガイド、format: prompt/json/md）
+- できること（主要機能の要約）：パイプDSL定義（`>>`/`pipe`/`switch`/`repeat`/`foreach`/`until`/`node_name: task_ref`）、`tasks.<local>.use` による plug-in 公開名の束ね直し、依存解決と実行、並列実行、タスク間データ受け渡し、コンソールでの実行トレース、LLM向け支援情報の生成（タスク一覧/詳細/flow.yamlガイド、format: prompt/json/md）
 - 使いどころ（When/Where）：ローカル開発/小規模チームの単一マシン実行
 - 成果物（Outputs）：タスクの戻り値、生成ファイル（任意）、実行結果のコンソール表示、LLM支援情報（prompt/json/md の文字列/ファイル）
 - 前提（Assumptions）：外部DBやログ永続化は持たず、Pythonコードで完結する。LLM支援情報は文字列または指定ファイルに出力する。
@@ -13,6 +13,8 @@
 - 依存関係のある処理を手動で順序管理するのが面倒
 - 並列化や成果物の受け渡しが煩雑
 - 分岐・反復・再利用パイプを統一記法で書きづらい
+- 同じ task 定義を別ノード名で複数回使いづらい
+- plug-in 公開名とフロー内の task 名を分けて管理しづらい
 - 利用可能なタスク/入出力仕様が分散しており、LLMに正しく渡しづらい
 - flow.yaml の書き方が属人的で、LLM支援の材料が不足する
 
@@ -28,7 +30,7 @@
 #5.機能一覧（Features）
 | ID | 機能 | 解決するPain | 対応UC |
 |---|---|---|---|
-| F-1 | パイプDSL定義（`>>`/`pipe`/`switch`/`repeat`/`foreach`/`until`） | 手順がコード化されていない/分岐・反復の記法が分散 | UC-1, UC-2 |
+| F-1 | パイプDSL定義（`>>`/`pipe`/`switch`/`repeat`/`foreach`/`until`/`node_name: task_ref`）と `tasks.<local>.use` による task 束ね直し | 手順がコード化されていない/分岐・反復の記法が分散/同一 task の再利用がしづらい/公開名とローカル名を分けにくい | UC-1, UC-2 |
 | F-2 | 依存解決と順序実行 | 手動の順序管理が面倒 | UC-1 |
 | F-3 | 独立タスクの並列実行 | 並列化が煩雑 | UC-3 |
 | F-4 | タスク間データ受け渡し | 成果物の受け渡しが煩雑 | UC-1, UC-4 |
@@ -94,3 +96,5 @@
 - TaskInfo: タスクの説明情報（入出力や由来を含む）。
 - SupportInfo: LLM向け支援情報の出力単位（一覧/詳細/ガイド）。
 - PipeRef: `pipes` に定義した名前付きパイプの参照（`pipe(NAME)`）。
+- Node Name: graph 内で `node_name: task_ref` と書いたときの実行ノード名。Context 参照やトレース表示に使う。
+- Public Task Name: plug-in が公開する安定名。`namespace/task_name` を推奨し、flow.yaml では `tasks.<local>.use` で参照する。

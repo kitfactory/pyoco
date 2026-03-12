@@ -55,5 +55,5 @@ class InvalidReferenceError(ValueError):
     def __init__(self, reference: str, reason: str):
         self.reference = reference
         self.reason = reason
-        supported = "$node.<task>.output[.<field>...], $ctx.params.<key>, $env.<key>"
+        supported = "$node.<node>.output[.<field>...], $ctx.params.<key>, $env.<key>"
         super().__init__(f"Invalid reference '{reference}': {reason}. Supported selectors: {supported}")

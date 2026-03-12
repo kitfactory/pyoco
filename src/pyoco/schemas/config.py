@@ -5,6 +5,7 @@ import yaml
 @dataclass
 class TaskConfig:
     callable: Optional[str] = None
+    use: Optional[str] = None
     inputs: Dict[str, Any] = field(default_factory=dict)
     outputs: List[str] = field(default_factory=list)
 
@@ -51,7 +52,16 @@ class PyocoConfig:
                 raise ValueError("Invalid config: 'flow' must be a mapping/object.")
             flow = FlowConfig(**flow_data)
 
-        tasks = {k: TaskConfig(**v) for k, v in data.get('tasks', {}).items()}
+        tasks: Dict[str, TaskConfig] = {}
+        for name, value in data.get("tasks", {}).items():
+            if not isinstance(value, dict):
+                raise ValueError(f"Invalid config: tasks.{name} must be a mapping/object.")
+            task_conf = TaskConfig(**value)
+            if task_conf.callable and task_conf.use:
+                raise ValueError(
+                    f"Invalid config: tasks.{name} cannot define both 'callable' and 'use'."
+                )
+            tasks[name] = task_conf
         pipes_data = data.get("pipes", {}) or {}
         if not isinstance(pipes_data, dict):
             raise ValueError("Invalid config: 'pipes' must be a mapping/object.")
@@ -66,7 +76,7 @@ class PyocoConfig:
                 "Unsupported config key 'discovery'.\n"
                 "For safety, discovery scope is not configurable in flow.yaml.\n"
                 "Remove 'discovery' and use PYOCO_DISCOVERY_MODULES to import extra modules, "
-                "or define tasks explicitly via tasks.<name>.callable."
+                "or define tasks via tasks.<name>.use / tasks.<name>.callable."
             )
 
         run_data = data.get('runtime', {})

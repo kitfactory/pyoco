@@ -1,6 +1,8 @@
-# Pyoco Plug-in Guide (v0.7.1)
+# Pyoco Plug-in Guide (v0.7.2)
 
 Pyoco keeps its core small and lets domain packages extend it via Python entry points. Any package can advertise additional tasks under the `pyoco.tasks` group; pyoco discovers and registers them automatically at startup.
+
+This model also lines up well with `pyoco-server`: once tasks are packaged as wheels, they are far easier to distribute to remote workers than loose local source files.
 
 ## Quickstart
 
@@ -24,7 +26,7 @@ from pyoco.core.models import Task
 
 class ImageClassifyTask(Task):
     def __init__(self):
-        super().__init__(func=self.run, name="image_classify")
+        super().__init__(func=self.run, name="vision/image_classify")
 
     def run(self, ctx: Any, image_path: str):
         # ... do inference ...
@@ -35,9 +37,27 @@ def register_tasks(registry):
     # registry.add(TaskWrapper(...)) なども利用可能
 ```
 
-3. **Install the plug-in** into the same environment as pyoco. `TaskLoader` calls the hook during discovery, so no changes to `flow.yaml` are required unless you want to override defaults.
+3. **Install the plug-in** into the same environment as pyoco. `TaskLoader` calls the hook during discovery. In `flow.yaml`, bind the public task name to a local name via `tasks.<local>.use`.
+
+```yaml
+tasks:
+  classify:
+    use: "vision/image_classify"
+
+flow:
+  graph: |
+    classify
+```
 
 > 旧来の `@registry.task` デコレータも残っていますが、CLI で警告対象になります。新規開発は Task サブクラスで統一しましょう。
+
+## Why this helps with `pyoco-server`
+
+- `pyoco-server` is the distributed execution side: server + workers + remote run management.
+- Packaged plug-ins are easier to move across workers because you can version and publish a wheel instead of copying project-local source by hand.
+- If your workers are separated by role, packaged task sets also let operations decide which worker group should receive which plug-in.
+
+Keep the detailed server setup in the `pyoco-server` docs. On the pyoco side, the important design point is simple: **package reusable tasks as plug-ins if you expect them to leave one machine.**
 
 ## Recommended project structure
 
@@ -50,7 +70,8 @@ pyoco-awesome/
 ```
 
 - `pyproject.toml` の `project.entry-points."pyoco.tasks"` に hook を記述。
-- エクスポートしたタスク名は `flow.yaml` や `pyoco run --config` からそのまま参照できます。
+- エクスポートしたタスク名は `namespace/task_name` 形式を推奨します。`flow.yaml` では `tasks.<local>.use` でローカル名へ束ねます。
+- `pyoco-server` で worker 配布を考える場合も、この package 形がそのまま流用しやすくなります。
 
 ## Local testing workflow
 
@@ -85,6 +106,7 @@ def test_register_tasks():
 ## Task 実装のミニガイド
 
 - 基本は **Task サブクラス**で実装し、`__init__` で `func=self.run` にしておくと CLI/Lint の表示が明確になります。
+- 公開名は `namespace/task_name` を推奨します。`.` は Python module path と誤認しやすいため、区切りは `/` を優先します。
 - 大きなデータは「ハンドル渡し」を優先：共有メモリ/メモリマップ/一時ファイルのパスなどを `ctx.artifacts` や `ctx.scratch` に置き、実体は必要なタスクでだけ読みます。
 - 遅延パイプライン（例: DataPipe）は「実際に回すタスク」で1行ログを出すと理解が早まります。例: `[pipeline] B:resize -> C:augment -> G:train`
 - outputs/input のメタは任意。必要なら `{"streaming": true, "handle": "memmap"}` のような辞書を `Task` に持たせ、PluginRegistry のメタとして渡すと CLI で可視化できます（書かなくても動作します）。
@@ -106,7 +128,7 @@ def test_register_tasks():
 | `registry.add(obj, name=None)` | Accepts an existing `Task` or `TaskWrapper`. Useful when plug-ins reuse flows/dsl fragments. |
 
 All registered tasks appear inside `TaskLoader.tasks` and obey explicit-config overrides (inputs/outputs) when names match.
-For lint compliance, pair each task with `registry.task_info(..., usage=\"...\")` so users can see how to use it.
+For lint compliance, pair each task with `registry.task_info(..., usage=\"...\")` so users can see how to use it. The recommended flow.yaml pattern is `tasks.<local_name>.use: "namespace/task_name"`.
 
 ## Inspecting plug-ins
 

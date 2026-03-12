@@ -1,15 +1,16 @@
 # 8. Control & Observability
 
-In this chapter, we will learn about the "Execution Control" and "Observability" features introduced in v0.2.0.
-Pyoco issues a unique **Run ID** for each execution and provides the ability to safely **cancel** running workflows.
+This chapter is about the parts you notice once a workflow is truly alive: identifying a run, watching it, and stopping it safely when needed.
 
-## Goals
+Pyoco issues a unique **Run ID** for each execution and lets you safely **cancel** running workflows.
+
+## 🎯 Goals
 
 1.  Check the **Run ID**.
 2.  Create a long-running task and cancel it with `Ctrl+C`.
 3.  Use `ctx.is_cancelled` to implement Cooperative Cancellation in tasks.
 
-## 1. Checking the Run ID
+## 🔎 1. Checking the Run ID
 
 When you run Pyoco, the `run_id` is now displayed at the beginning of the log.
 
@@ -19,7 +20,7 @@ When you run Pyoco, the `run_id` is now displayed at the beginning of the log.
 
 This ID is useful for log correlation and local debugging (server features are archived).
 
-## 2. Creating a Cancellable Task
+## 🧪 2. Creating a Cancellable Task
 
 Long-running tasks should react to user cancellation requests (`Ctrl+C`) and interrupt their processing.
 Pyoco informs tasks whether the current execution has been cancelled via the `ctx.is_cancelled` property.
@@ -60,7 +61,9 @@ tasks:
     callable: tasks:long_running_job
 ```
 
-## 3. Execution and Cancellation
+This local `callable` binding keeps the example easy to run. In a reusable package, expose the same task through a plug-in and bind it with `use`.
+
+## ▶️ 3. Execution and Cancellation
 
 Run this flow and press `Ctrl+C` halfway through.
 

@@ -1,12 +1,12 @@
 # 2. Parameters & Inputs
 
-In this chapter, you will learn how to make your tasks dynamic by using parameters and inputs.
+This chapter is where your workflow stops being a fixed demo and starts reacting to real input. You will keep the example small, but the idea scales directly to larger flows.
 
-## Goal
+## 🎯 Goal
 - Pass parameters to tasks from the configuration.
 - Override parameters from the command line.
 
-## 1. Update `tasks.py`
+## ✍️ 1. Update `tasks.py`
 Modify `tasks.py` to accept arguments:
 
 ```python
@@ -19,7 +19,7 @@ def greet(ctx, name, greeting="Hello"):
 
 - Pyoco automatically injects parameters if their names match the function arguments.
 
-## 2. Update `flow.yaml`
+## 🗺️ 2. Update `flow.yaml`
 Update `flow.yaml` to define default parameters:
 
 ```yaml
@@ -38,8 +38,9 @@ flow:
 ```
 
 - `defaults`: Sets global default values for parameters.
+- `callable`: Still fine for a tiny chapter example. In reusable projects, prefer plug-in tasks plus `tasks.<local_name>.use`.
 
-## 3. Run with Defaults
+## ▶️ 3. Run with Defaults
 Run the flow as before:
 
 ```bash
@@ -51,7 +52,7 @@ Output:
 Hi, User!
 ```
 
-## 4. Override via CLI
+## 🎛️ 4. Override via CLI
 You can override parameters using the `--param` flag:
 
 ```bash
@@ -65,7 +66,7 @@ Welcome, Alice!
 
 This makes your workflows reusable for different contexts without changing the code.
 
-## 5. Advanced Selectors
+## 🧠 5. Advanced Selectors
 You can also access context parameters and environment variables directly in your `flow.yaml` using selectors.
 
 ### Context Parameters (`$ctx.params`)
@@ -98,5 +99,7 @@ tasks:
     inputs:
       data: "$node.build_report.output"
 ```
+
+You now have the basic building block for configurable flows: defaults for the common case, CLI overrides for the one-off case, and selectors when you want to be explicit.
 
 [Next: Data Flow & Dependencies](03_data_flow.md)

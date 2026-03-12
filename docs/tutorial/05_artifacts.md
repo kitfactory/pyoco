@@ -1,12 +1,12 @@
 # 5. Artifacts & Outputs
 
-In this chapter, you will learn how to manage task outputs and persist data.
+This chapter is about leaving useful traces behind. A workflow becomes more valuable when its results can be reused, inspected, or handed to the next step.
 
-## Goal
+## 🎯 Goal
 - Save task results to the Context using `outputs`.
 - Save files (artifacts) manually using `ctx.save_artifact`.
 
-## 1. Saving to Context (`outputs`)
+## 📦 1. Saving to Context (`outputs`)
 You can configure Pyoco to save a task's return value to specific paths in the Context. This is useful for passing data to other tasks without direct dependency wiring.
 
 ### `tasks.py`
@@ -36,7 +36,7 @@ flow:
 
 Later tasks can access this data via `$ctx.scratch.metrics`.
 
-## 2. Saving Artifacts (Files)
+## 🗂️ 2. Saving Artifacts (Files)
 To save files (like reports, images, or models), use `ctx.save_artifact` within your task code.
 
 ```python
@@ -49,5 +49,7 @@ def generate_chart(ctx):
 ```
 
 This keeps your configuration clean (`inputs` for data sources, `outputs` for data destinations) while leaving file persistence logic in Python.
+
+Use `outputs` when the next task needs structured values. Use artifacts when you want durable files people or other tools can inspect later.
 
 [Next: Advanced: Error Handling](06_errors.md)

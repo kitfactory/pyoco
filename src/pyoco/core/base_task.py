@@ -20,15 +20,11 @@ Typical usage::
             result = data * 2
             return result
 
-In ``flow.yaml`` you reference the method as usual::
+In reusable projects, register the task from a plug-in and bind it in ``flow.yaml`` via ``use``::
 
     tasks:
       double:
-        callable: "my_module:MyTask.run"
-        inputs:
-          my_input: "$ctx.params.value"
-        outputs:
-          - "scratch.doubled"
+        use: "demo/double"
 
 The abstract base class does not enforce any particular input/output
 schema – it simply provides a clear contract for developers and makes the

@@ -1,13 +1,13 @@
 # 4. Control Components (pipe / switch / repeat / foreach / until)
 
-In this chapter, you will learn the control components of the current graph DSL.
+This is the chapter where the graph DSL starts to feel powerful. You keep the same `>>` mental model, but now add branching, reuse, and repetition without dropping into a larger framework.
 
-## Goal
+## 🎯 Goal
 - Reuse pipeline fragments with `pipe(NAME)`.
 - Select one branch with `switch(on=...){ ... }`.
 - Run repeated logic with `repeat` / `foreach` / `until`.
 
-## 1. Define Tasks (`tasks.py`)
+## ✍️ 1. Define Tasks (`tasks.py`)
 
 ```python
 from pyoco.dsl.syntax import task
@@ -56,7 +56,7 @@ def finish(ctx):
     }
 ```
 
-## 2. Configure Flow (`flow.yaml`)
+## 🗺️ 2. Configure Flow (`flow.yaml`)
 
 ```yaml
 version: 1
@@ -101,12 +101,15 @@ flow:
 - `repeat(count=2){ ... }`: runs the body a fixed number of times.
 - `foreach(over={{items}}, item=it, index=idx){ ... }`: iterates list items with aliases.
 - `until(cond={{params.done}}, max_iter=5){ ... }`: repeats until condition becomes true.
+- For a tutorial chapter, local `callable` bindings keep the file compact. In longer-lived projects, the same graph reads better when task names come from plug-ins and local aliases.
 
-## 3. Check and Run
+## ▶️ 3. Check and Run
 
 ```bash
 pyoco check --config flow.yaml --dry-run
 pyoco run --config flow.yaml
 ```
+
+This is the point where Pyoco usually becomes “worth keeping”: the flow stays small, but the control logic is no longer toy-sized.
 
 [Next: Artifacts & Saving](05_artifacts.md)

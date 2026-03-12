@@ -144,17 +144,17 @@ class Context:
         if not isinstance(value, str) or not value.startswith("$"):
             return value
         
-        # $node.<Name>.output
+        # $node.<node_name>.output
         if value.startswith("$node."):
             parts = value.split(".")
             # $node.A.output -> ["$node", "A", "output"]
             # $node.A.output.x -> ["$node", "A", "output", "x"]
             if len(parts) < 3 or parts[2] != "output":
-                raise InvalidReferenceError(value, "expected '$node.<task>.output[.<field>...]'")
+                raise InvalidReferenceError(value, "expected '$node.<node>.output[.<field>...]'")
             
             node_name = parts[1]
             if not node_name:
-                raise InvalidReferenceError(value, "task name is required after '$node.'")
+                raise InvalidReferenceError(value, "node name is required after '$node.'")
             if node_name not in self.results:
                 raise KeyError(f"Node '{node_name}' result not found in context.")
             

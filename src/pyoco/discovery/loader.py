@@ -1,5 +1,6 @@
 import importlib
 import os
+from copy import deepcopy
 from dataclasses import asdict, is_dataclass
 from typing import Dict, List, Any, Set
 from ..core.models import Task
@@ -26,6 +27,7 @@ class TaskLoader:
         self._load_env_modules()
 
         self._load_entry_point_plugins()
+        self._resolve_task_uses()
 
     def _load_env_modules(self) -> None:
         raw = os.getenv("PYOCO_DISCOVERY_MODULES", "")
@@ -49,7 +51,7 @@ class TaskLoader:
         # Apply config overlay if exists
         if self.config and name in self.config.tasks:
             conf = self.config.tasks[name]
-            if not self._conf_get(conf, "callable"):
+            if not self._conf_get(conf, "callable") and not self._conf_get(conf, "use"):
                 inputs = self._conf_get(conf, "inputs") or {}
                 outputs = self._conf_get(conf, "outputs") or []
                 if inputs:
@@ -58,6 +60,16 @@ class TaskLoader:
                     task.outputs.extend(outputs)
 
         self.tasks[name] = task
+
+    def _resolve_task_uses(self) -> None:
+        if not self.config:
+            return
+        for task_name, task_conf in self.config.tasks.items():
+            target_name = self._conf_get(task_conf, "use")
+            if not target_name:
+                continue
+            self._explicit_tasks.add(task_name)
+            self._load_task_use(task_name, task_conf, target_name)
 
     def _register_task_info(self, info: Any):
         name = getattr(info, "name", None)
@@ -149,6 +161,36 @@ class TaskLoader:
             self.tasks[name] = t
         except (ImportError, AttributeError) as e:
             print(f"Error loading task {name}: {e}")
+
+    def _load_task_use(self, name: str, conf: Any, target_name: str) -> None:
+        source = self.tasks.get(target_name)
+        if source is None:
+            raise ValueError(
+                f"Task '{name}' uses unknown task '{target_name}'. "
+                "Register it via a plug-in, env module, or explicit task first."
+            )
+        alias = self._clone_task(source, name)
+        inputs = self._conf_get(conf, "inputs") or {}
+        outputs = self._conf_get(conf, "outputs") or []
+        if inputs:
+            alias.inputs.update(inputs)
+        if outputs:
+            alias.outputs.extend(outputs)
+        self.tasks[name] = alias
+
+    def _clone_task(self, task: Task, name: str) -> Task:
+        cloned = Task(
+            func=task.func,
+            name=name,
+            parallel_group=task.parallel_group,
+            fail_policy=task.fail_policy,
+            retries=task.retries,
+            timeout_sec=task.timeout_sec,
+            trigger_policy=task.trigger_policy,
+        )
+        cloned.inputs = deepcopy(task.inputs)
+        cloned.outputs = list(task.outputs)
+        return cloned
 
     def get_task(self, name: str) -> Task:
         return self.tasks.get(name)

@@ -1,12 +1,12 @@
 # 3. Data Flow & Dependencies
 
-In this chapter, you will learn how to connect tasks together and pass data between them.
+This chapter is where separate tasks start feeling like one workflow. You will connect outputs to downstream inputs and make the graph read like a story instead of isolated functions.
 
-## Goal
+## 🎯 Goal
 - Define dependencies between tasks (`A >> B`).
 - Pass the output of one task as input to another.
 
-## 1. Define Tasks (`tasks.py`)
+## ✍️ 1. Define Tasks (`tasks.py`)
 We'll create a pipeline that generates a number, multiplies it, and formats it.
 
 ```python
@@ -32,7 +32,7 @@ def format_result(ctx, number):
     return message
 ```
 
-## 2. Configure Flow (`flow.yaml`)
+## 🗺️ 2. Configure Flow (`flow.yaml`)
 We need to define the dependencies and map the inputs. The default pattern is to connect tasks via `$ctx.params`.
 
 ```yaml
@@ -66,8 +66,9 @@ flow:
 - `>>`: Defines the execution order. `generate_number` runs first, then `multiply`, then `format_result`.
 - `$ctx.params.<key>`: The standard way to connect tasks via shared parameters.
 - Use `$node.<TaskName>.output` when you need to avoid overwriting shared params or require an explicit upstream output.
+- This chapter still uses local `callable` bindings for brevity. Once the tasks are reusable, move the same graph idea to plug-ins + `tasks.<local>.use`.
 
-## 3. Run It
+## ▶️ 3. Run It
 ```bash
 pyoco run --config flow.yaml
 ```
@@ -78,5 +79,7 @@ Generated: 5
 Multiplied: 10
 The final result is: 10
 ```
+
+If Chapter 2 made the flow configurable, this chapter makes it composable. The next step is to add branching and loops without losing readability.
 
 [Next: Control Components (pipe/switch/repeat/foreach/until)](04_parallel.md)

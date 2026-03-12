@@ -47,3 +47,11 @@ def test_support_service_writes_output(tmp_path):
     out_path = tmp_path / "out.txt"
     service.build(kind="tasks", config_path="dummy.yaml", output_path=str(out_path))
     assert out_path.read_text() == "content"
+
+
+def test_renderer_guide_mentions_task_use():
+    renderer = SupportInfoRenderer()
+    guide = renderer.render("guide", None, "prompt")
+
+    assert "tasks.<local_name>.use" in guide
+    assert "demo/task_a" in guide

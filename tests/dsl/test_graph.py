@@ -69,3 +69,27 @@ def test_foreach_index_alias_compiles_to_node():
     assert node.index_alias == "i"
     assert node.collect == "list"
 
+
+def test_named_task_term_creates_distinct_nodes_from_same_task():
+    tasks = _tasks("shared", "finish")
+    flow = build_flow_from_graph(
+        graph="first: shared >> second: shared >> finish",
+        tasks=tasks,
+        flow_name="main",
+    )
+    task_map = {task.name: task for task in flow.tasks}
+    assert set(task_map) == {"first", "second", "finish"}
+    assert task_map["first"] is not task_map["second"]
+    assert task_map["second"] in task_map["first"].dependents
+    assert task_map["finish"] in task_map["second"].dependents
+
+
+def test_duplicate_named_task_term_is_rejected():
+    tasks = _tasks("shared")
+    with pytest.raises(GraphValidationError, match="Duplicate node name: first"):
+        build_flow_from_graph(
+            graph="first: shared >> first: shared",
+            tasks=tasks,
+            flow_name="main",
+        )
+

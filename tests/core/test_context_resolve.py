@@ -23,6 +23,14 @@ def test_resolve_node_output_nested():
     assert ctx.resolve("$node.B.output.x") == 1
     assert ctx.resolve("$node.B.output.y") == 2
 
+
+def test_get_result_by_named_node():
+    ctx = Context()
+    ctx.set_result("first", {"value": 10})
+
+    assert ctx.get_result("first") == {"value": 10}
+    assert ctx.resolve("$node.first.output.value") == 10
+
 def test_resolve_ctx_params():
     ctx = Context(params={"foo": "bar", "num": 42})
     
@@ -57,4 +65,4 @@ def test_resolve_malformed_node_selector():
     with pytest.raises(InvalidReferenceError) as exc:
         ctx.resolve("$node.A.out")
     assert "$node.A.out" in str(exc.value)
-    assert "$node.<task>.output" in str(exc.value)
+    assert "$node.<node>.output" in str(exc.value)

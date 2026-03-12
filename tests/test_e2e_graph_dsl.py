@@ -132,3 +132,54 @@ def test_e2e_graph_dsl_check_dry_run(tmp_path, monkeypatch, capsys):
     json_payload = out[out.find("{") :]
     report = json.loads(json_payload)
     assert report["status"] == "ok"
+
+
+def test_e2e_named_nodes_can_reuse_same_task_definition(tmp_path, monkeypatch):
+    module_path = tmp_path / "named_tasks.py"
+    module_path.write_text(
+        "from pyoco import task\n"
+        "\n"
+        "@task\n"
+        "def emit(ctx):\n"
+        "    current = ctx.params.get('current', 0) + 1\n"
+        "    ctx.params['current'] = current\n"
+        "    return current\n"
+        "\n"
+        "@task\n"
+        "def finish(ctx, first, second):\n"
+        "    return {'first': first, 'second': second}\n",
+        encoding="utf-8",
+    )
+    config_path = tmp_path / "named_flow.yaml"
+    config_path.write_text(
+        "version: 1\n"
+        "tasks:\n"
+        "  emit:\n"
+        "    callable: \"named_tasks:emit\"\n"
+        "  finish:\n"
+        "    callable: \"named_tasks:finish\"\n"
+        "    inputs:\n"
+        "      first: \"$node.first.output\"\n"
+        "      second: \"$node.second.output\"\n"
+        "flow:\n"
+        "  graph: |\n"
+        "    first: emit >> second: emit >> finish\n",
+        encoding="utf-8",
+    )
+    monkeypatch.syspath_prepend(str(tmp_path))
+
+    config = PyocoConfig.from_yaml(str(config_path))
+    loader = TaskLoader(config)
+    loader.load()
+
+    flow = build_flow_from_graph(
+        graph=config.flow.graph,
+        tasks=loader.tasks,
+        pipes=config.pipes,
+        flow_name="main",
+    )
+    ctx = Engine().run(flow, params={})
+
+    assert ctx.get_result("first") == 1
+    assert ctx.get_result("second") == 2
+    assert ctx.get_result("finish") == {"first": 1, "second": 2}

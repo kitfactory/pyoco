@@ -23,6 +23,8 @@
 | REQ-0015 | ユーザーが `switch` を使ったら、評価値に応じたbranchを1つ実行する。 | UC-1, UC-2 |
 | REQ-0016 | ユーザーが `repeat`/`foreach`/`until` を使ったら、反復実行と集約規則で出力を返す。 | UC-1, UC-2 |
 | REQ-0017 | ユーザーが `check --dry-run` を実行したら、DSLの形式検証を行う。 | UC-1, UC-2 |
+| REQ-0018 | ユーザーが `node_name: task_ref` を使ったら、同一task定義を別ノード名で複数回使える。 | UC-1, UC-2 |
+| REQ-0019 | ユーザーが `tasks.<local>.use` を指定したら、plug-in 公開名をローカルtask名へ束ねられる。 | UC-1, UC-2 |
 
 ### [PYOCO-0001] ユーザーがタスクと依存関係を定義したら、Pyocoはフローを構築する。
 Given：タスク定義が用意されている  
@@ -219,6 +221,28 @@ Done：DSLの形式のみを検証する（構文、Term種別、`pipes` 参照�
 | ERR-PYOCO-0017 | 反復設定の形式が不正 | 反復設定を修正する | MSG-PYOCO-0019 |
 | ERR-PYOCO-0018 | collect指定が未対応 | collectを修正する | MSG-PYOCO-0020 |
 
+### [PYOCO-0018] ユーザーが `node_name: task_ref` を使ったら、同一task定義を別ノード名で複数回使える。
+Given：graph に登録済み task 定義があり、同じ task_ref を複数箇所で使いたい  
+When：ユーザーが `node_name: task_ref` 形式で task term を記述する  
+Done：`task_ref` の定義を使う別ノードが `node_name` 名義で構築され、Context/tracing/実行記録ではノード名単位に扱われる（`$node.<node_name>.output` で参照できる）
+
+#### エラー分岐（REQ-0018の枝番）
+| ERR-ID | 発生条件 | ユーザーアクション | 関連MSG-ID |
+|---|---|---|---|
+| ERR-PYOCO-0014 | 名前付きtask構文が不正 | graphを修正する | MSG-PYOCO-0016 |
+| ERR-PYOCO-0021 | ノード名が重複している | node_name を修正する | MSG-PYOCO-0021 |
+
+### [PYOCO-0019] ユーザーが `tasks.<local>.use` を指定したら、plug-in 公開名をローカルtask名へ束ねられる。
+Given：plug-in または追加 import により公開済み task 名が存在する  
+When：ユーザーが `tasks.classify.use: "vision/image_classify"` のように定義する  
+Done：Pyoco は公開 task を `classify` というローカル task 名で利用でき、graph では `classify` を参照する（公開名は `namespace/task_name` を推奨し、`callable` は補助経路として残す）
+
+#### エラー分岐（REQ-0019の枝番）
+| ERR-ID | 発生条件 | ユーザーアクション | 関連MSG-ID |
+|---|---|---|---|
+| ERR-PYOCO-0002 | `use` 先の公開 task が未登録 | plug-in 設定または `use` 名を修正する | MSG-PYOCO-0006 |
+| ERR-PYOCO-0001 | 同一 task に `use` と `callable` を同時指定した | config を修正する | MSG-PYOCO-0006 |
+
 ## メッセージID管理（MSG-xxxx）
 | ID | 文面テンプレ | 出力先 | 発生条件 | 関連REQ/ERR |
 |---|---|---|---|---|
@@ -239,6 +263,7 @@ Done：DSLの形式のみを検証する（構文、Term種別、`pipes` 参照�
 | MSG-PYOCO-0018 | Switch no match without default: {value} | コンソール | switch未一致かつdefaultなし | ERR-PYOCO-0016 |
 | MSG-PYOCO-0019 | Invalid loop config: {detail} | コンソール | 反復設定不正 | ERR-PYOCO-0017 |
 | MSG-PYOCO-0020 | Invalid collect mode: {mode} | コンソール | collect不正 | ERR-PYOCO-0018 |
+| MSG-PYOCO-0021 | Duplicate node name: {name} | コンソール | node_name 重複 | ERR-PYOCO-0021 |
 
 ## エラーID管理（ERR-xxxx）
 | ID | 原因 | 検出条件 | ユーザーアクション | 再試行可否 | 関連MSG-ID | 関連REQ |
@@ -261,3 +286,4 @@ Done：DSLの形式のみを検証する（構文、Term種別、`pipes` 参照�
 | ERR-PYOCO-0016 | switch未一致 | case未一致かつdefault未定義 | switch定義を修正する | 可 | MSG-PYOCO-0018 | REQ-0015 |
 | ERR-PYOCO-0017 | 反復設定不正 | count/max_iter/over等の設定が不正 | 反復設定を修正する | 可 | MSG-PYOCO-0019 | REQ-0016/0017 |
 | ERR-PYOCO-0018 | collect不正 | 未対応collect指定 | collectを修正する | 可 | MSG-PYOCO-0020 | REQ-0016/0017 |
+| ERR-PYOCO-0021 | ノード名重複 | 同じ node_name が複数ノードに割り当てられた | node_name を修正する | 可 | MSG-PYOCO-0021 | REQ-0018 |

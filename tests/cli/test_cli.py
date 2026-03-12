@@ -105,6 +105,25 @@ def test_cli_check_dry_run_error(mock_config):
     
     assert excinfo.value.code == 2
 
+
+def test_cli_check_rejects_duplicate_named_nodes(mock_config):
+    mock_config.flow.graph = "first: A >> first: B"
+
+    with patch("pyoco.cli.main.PyocoConfig.from_yaml", return_value=mock_config), \
+         patch("pyoco.cli.main.TaskLoader") as MockLoader, \
+         patch("sys.argv", ["pyoco", "check", "--config", "dummy.yaml", "--json"]), \
+         pytest.raises(SystemExit) as excinfo:
+
+        loader = MockLoader.return_value
+        loader.tasks = {
+            "A": Task(func=lambda: None, name="A"),
+            "B": Task(func=lambda: None, name="B"),
+        }
+
+        main()
+
+    assert excinfo.value.code == 1
+
 def test_cli_runs_inspect_json(capsys):
     fake_run = {
         "run_id": "abc",

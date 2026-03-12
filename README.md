@@ -2,20 +2,27 @@
 
 **pyoco is a minimal, pure-Python DAG engine for defining and running simple task-based workflows.**
 
-## Overview
+## ✨ Why It Feels Easy
 
-Pyoco is designed to be significantly smaller, lighter, and have fewer dependencies than full-scale workflow engines like Airflow. It is optimized for local development and single-machine execution.
+- ⚡ **Try it in minutes**: a tiny local workflow is enough to get your first success.
+- 🧩 **Grow without changing tools**: when your flow becomes reusable, move to plug-ins + `tasks.<local>.use`.
+- 🪶 **Stay lightweight**: no scheduler cluster, no metadata DB, no “platform first” setup.
 
-You can define tasks and their dependencies entirely in Python code using decorators and a simple API. There is no need for complex configuration files or external databases.
+Pyoco is intentionally much smaller than full-scale workflow engines like Airflow. It is built for local development, single-machine execution, and “I want to run this now” workflows.
 
-It is ideal for small jobs, development environments, and personal projects where a full-stack workflow engine would be overkill.
+## 🚦 Pick Your Route
+
+- **Fastest first success**: write one tiny task and run it locally. Great for learning or debugging an idea.
+- **Recommended project route**: package reusable tasks as entry point plug-ins, then bind them in `flow.yaml` with `tasks.<local_name>.use`.
+
+If you are new to Pyoco, do the quick win first. If you are building something you want to keep, learn the plug-in route right after.
 
 ## ✨ Features
 
 - **Pure Python**: No external services or heavy dependencies required.
 - **Minimal DAG model**: Tasks and dependencies are defined directly in code.
 - **Task-oriented**: Focus on "small workflows" that should be easy to read and maintain.
-- **Graph DSL controls**: `>>` pipeline + `pipe/switch/repeat/foreach/until` for branching and loops in `flow.yaml`.
+- **Graph DSL controls**: `>>` pipeline + `node_name: task_ref` + `pipe/switch/repeat/foreach/until` for branching, reuse, and loops in `flow.yaml`.
 - **Friendly trace logs**: Runs can be traced step by step from the terminal with cute (or plain) logs.
 - **Parallel Execution**: Automatically runs independent tasks in parallel.
 - **Artifact Management**: Easily save and manage task outputs and files.
@@ -28,9 +35,9 @@ It is ideal for small jobs, development environments, and personal projects wher
 pip install pyoco
 ```
 
-## 🚀 Usage
+## 🚀 Quick Win: Run Something in 60 Seconds
 
-Here is a minimal example of a pure-Python workflow.
+This is the **shortest possible hello**. It keeps everything in one file so you can feel the engine immediately.
 
 ```python
 from pyoco import task
@@ -88,29 +95,38 @@ Output:
 
 See [examples/hello_pyoco.py](examples/hello_pyoco.py) for the full code.
 
+## 🧭 Build It the Recommended Way
+
+When a task should be reused, shared, or documented, prefer this shape:
+
+1. Publish a Task subclass from a plug-in package.
+2. Give it a stable public name such as `vision/image_classify`.
+3. Bind that public name to a local workflow name with `tasks.<local_name>.use`.
+
+That is the model Pyoco now treats as the default for real projects.
+
 ## 🧾 flow.yaml Graph DSL
 
-Pyoco also supports workflow definition in `flow.yaml` with a `>>`-based graph DSL.
+This is the model to learn once you move past a one-file experiment. `flow.yaml` keeps the graph readable, and plug-in task names keep reuse clean.
+
+For production-style task sharing, prefer **entry point plug-ins that register Task subclasses** and bind them in `flow.yaml` via `tasks.<local_name>.use`. Keep `tasks.<name>.callable` as an explicit local override or migration path.
 
 ```yaml
 version: 1
 
-pipes:
-  setup: "prepare >> choose_mode"
-
 tasks:
   prepare:
-    callable: "tasks:prepare"
+    use: "demo/prepare"
   choose_mode:
-    callable: "tasks:choose_mode"
+    use: "demo/choose_mode"
   run_batch:
-    callable: "tasks:run_batch"
+    use: "demo/run_batch"
   process_item:
-    callable: "tasks:process_item"
+    use: "demo/process_item"
   poll_status:
-    callable: "tasks:poll_status"
+    use: "demo/poll_status"
   finish:
-    callable: "tasks:finish"
+    use: "demo/finish"
 
 flow:
   defaults:
@@ -118,9 +134,10 @@ flow:
     items: ["A", "B", "C"]
     done: false
   graph: |
-    pipe(setup)
+    prepare
+    >> choose_mode
     >> switch(on={{mode}}){
-      batch: repeat(count=2){ run_batch };
+      batch: first_batch: run_batch >> second_batch: run_batch;
       default: run_batch;
     }
     >> foreach(over={{items}}, item=it, index=idx){ process_item }
@@ -129,9 +146,13 @@ flow:
 ```
 
 - `>>`: sequential dependency
+- `node_name: task_ref`: reuse one task definition with a distinct runtime node name
+- `tasks.<local_name>.use`: bind a registered public task name such as `demo/run_batch` to a local graph name
 - `pipe(NAME)`: inline expansion from top-level `pipes`
 - `switch(on=...){ ... }`: single-branch selection
 - `repeat` / `foreach` / `until`: control loops
+
+Want a gentle walkthrough instead of reading specs? Start with [docs/tutorial/index.md](docs/tutorial/index.md).
 
 ## 🏗️ Architecture
 
@@ -177,12 +198,16 @@ See `docs/archive/observability.md` and `docs/archive/roadmap.md`.
 `pyoco` focuses on local/single-machine workflow execution.  
 For distributed workers, queueing, and remote run management, use **`pyoco-server`**.
 
+- The practical win of the plug-in model is distribution: packaged task sets can travel as wheels instead of ad-hoc source copies.
+- `pyoco-server` provides the worker/server side for that model, so reusable task packages fit naturally when you want to fan out execution beyond one machine.
 - Repository: <https://github.com/kitfactory/pyoco-server>
 - Detailed setup, operations, and compatibility are documented in `pyoco-server`.
 
 ## 🧩 Plug-ins
 
-Need to share domain-specific tasks? Publish an entry point under `pyoco.tasks` and pyoco will auto-load it. We recommend **Task subclasses first** (callables still work with warnings). See [docs/plugins.md](docs/plugins.md) for examples, quickstart, and `pyoco plugins list` / `pyoco plugins lint`.
+Need to share domain-specific tasks? Publish an entry point under `pyoco.tasks` and pyoco will auto-load it. This is the **default recommended path**. Register **Task subclasses first** (callables still work with warnings), give them stable public names like `vision/image_classify`, then bind them with `tasks.<local_name>.use` in `flow.yaml`. See [docs/plugins.md](docs/plugins.md) for examples, quickstart, and `pyoco plugins list` / `pyoco plugins lint`.
+
+Another reason this path matters: once tasks live in a package, they are much easier to distribute to `pyoco-server` workers as versioned plug-ins.
 
 **Big data note:** pass handles, not copies. For large tensors/images, stash paths or handles in `ctx.artifacts`/`ctx.scratch` and let downstream tasks materialize only when needed. For lazy pipelines (e.g., DataPipe), log the pipeline when you actually iterate (typically the training task) instead of materializing upstream.
 
@@ -192,7 +217,8 @@ Pyoco does not allow configuring discovery scope in `flow.yaml` (the `discovery:
 
 - **Entry point plug-ins**: auto-loaded from `importlib.metadata.entry_points(group="pyoco.tasks")`
 - **Extra imports (ops-controlled)**: set `PYOCO_DISCOVERY_MODULES` (comma/space-separated module names), e.g. `PYOCO_DISCOVERY_MODULES=tasks,myapp.extra_tasks`
-- **Explicit tasks**: prefer `tasks.<name>.callable` in `flow.yaml` (see tutorials)
+- **Flow-local bindings**: prefer `tasks.<local_name>.use: "namespace/task_name"` for registered plug-in tasks
+- **Explicit callables**: keep `tasks.<name>.callable` for local overrides or small ad-hoc flows
 
 ## 📚 Documentation
 

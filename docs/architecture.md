@@ -1,7 +1,7 @@
 # architecture.md（必ず書く：最新版）
 #1.アーキテクチャ概要（構成要素と責務）
 - ユーザーコード/CLI: タスク・フロー定義、実行/検証/支援情報取得の入口
-- DSL/API: `>>` 固定のパイプDSL（Task/pipe/switch/repeat/foreach/until）を解析してDAGを構築
+- DSL/API: `>>` 固定のパイプDSL（Task/`node_name: task_ref`/pipe/switch/repeat/foreach/until）を解析してDAGを構築
 - 実行制御: Engine が依存解決・並列実行・キャンセル・状態更新を担う
 - DSL解析: DSLParser が graph を字句解析/構文解析し、Term列ASTへ変換する
 - 参照展開: PipeResolver が `pipe(NAME)` を展開し循環/上限（深さ128・Term数4096）を検証する
@@ -10,7 +10,7 @@
 - 実行コンテキスト: Context が params/results/scratch/artifacts を管理（artifactsは慣習的な入れ物）
 - ドメインモデル: Task/Flow/RunContext/TaskRecord/TaskInfo/TaskIO/SupportInfo が実行状態とメタ情報を保持
 - トレース: TraceBackend (ConsoleTraceBackend) がコンソール出力
-- 構成/ディスカバリ: PyocoConfig/TaskLoader/PluginRegistry が設定とタスク登録を担う
+- 構成/ディスカバリ: PyocoConfig/TaskLoader/PluginRegistry が設定とタスク登録を担う（`tasks.<local>.use` で公開 task 名をローカル task 名へ束ねる）
 - インフラ: ThreadPoolExecutor とファイルI/O（config読み込み/成果物保存/支援情報出力）
 
 #2.concept のレイヤー構造との対応表
@@ -21,7 +21,7 @@
 |---|---|---|
 | プレゼンテーション層 | Python API（task/Flow/run/support）, CLI | フロー定義・実行・支援情報取得 |
 | アプリケーション層 | Engine, TaskLoader, DSLParser, PipeResolver, DryRunValidator, FlowValidator, SupportInfoService, SupportInfoRenderer | 実行制御/DSL解析/形式検証/支援情報生成 |
-| ドメイン層 | Task/Flow/RunContext/TaskRecord/TaskInfo/TaskIO, DSLノード（TaskTerm/PipeRefTerm/SwitchTerm/RepeatTerm/ForEachTerm/UntilTerm） | DAG表現とメタ情報管理 |
+| ドメイン層 | Task/Flow/RunContext/TaskRecord/TaskInfo/TaskIO, DSLノード（TaskTerm/PipeRefTerm/SwitchTerm/RepeatTerm/ForEachTerm/UntilTerm） | DAG表現とメタ情報管理（TaskTerm は `task_ref` と任意の `node_name` を持つ） |
 | インフラ層 | ThreadPoolExecutor, filesystem, yaml, json | 並列実行基盤・入出力 |
 
 #2.1 DSL運用ポリシー
@@ -44,7 +44,7 @@
 |---|---|---|---|---|
 | taskデコレータ | 関数をTaskとして登録 | func: Callable（任意引数, ctx注入可） | TaskWrapper（task: Task） | - |
 | Flow.add_task | FlowへTask追加 | task: Task | None | - |
-| CLI: run/check | 設定からFlowを構築 | config: file path, flow: str | Flow | ERR-PYOCO-0001: 読み込み不正, ERR-PYOCO-0002: 未定義タスク参照, ERR-PYOCO-0014: DSL構文不正, ERR-PYOCO-0015: pipe参照不正, ERR-PYOCO-0017: 反復設定不正, ERR-PYOCO-0018: collect不正（run/check は同一DSL評価規則を使用） |
+| CLI: run/check | 設定からFlowを構築 | config: file path, flow: str | Flow | ERR-PYOCO-0001: 読み込み不正, ERR-PYOCO-0002: 未定義タスク参照（`use` 含む）, ERR-PYOCO-0014: DSL構文不正, ERR-PYOCO-0015: pipe参照不正, ERR-PYOCO-0017: 反復設定不正, ERR-PYOCO-0018: collect不正（run/check は同一DSL評価規則を使用） |
 
 #### UC-3: 依存のない処理を並列化する
 | 操作/API | 役割 | 入力（型/主要フィールド/値範囲） | 出力（型/主要フィールド） | 例外（発生条件） |
@@ -54,7 +54,7 @@
 #### UC-4: タスク成果物を次のタスクに渡す
 | 操作/API | 役割 | 入力（型/主要フィールド/値範囲） | 出力（型/主要フィールド） | 例外（発生条件） |
 |---|---|---|---|---|
-| Task.inputs（参照式） | 上流出力/params/envを参照 | inputs: dict<str, str>（$ctx.params.* を基本、上書き回避/明示的な上流出力は $node.<task>.output、$env.*） | 実行時に解決された値 | ERR-PYOCO-0006: 参照先不存在/参照式の構文不正 |
+| Task.inputs（参照式） | 上流出力/params/envを参照 | inputs: dict<str, str>（$ctx.params.* を基本、上書き回避/明示的な上流出力は $node.<node>.output、$env.*） | 実行時に解決された値 | ERR-PYOCO-0006: 参照先不存在/参照式の構文不正 |
 | Context.save_artifact | 成果物をファイル保存 | name: str, data: Any | path: str | ERR-PYOCO-0007: ファイルI/O失敗 |
 
 #### UC-5: LLM向け支援情報を取得する
@@ -238,7 +238,7 @@
 ##### Method: set_result
 | 引数 | 型 | 意味 | 値範囲/制約 | 必須 |
 |---|---|---|---|---|
-| node_name | str | タスク名 | 既存タスク名 | 必須 |
+| node_name | str | ノード名 | graph 上で一意 | 必須 |
 | value | Any | 出力値 | 任意 | 必須 |
 
 | 戻り値 | 型 | 主要フィールド |
@@ -252,7 +252,7 @@
 ##### Method: get_result
 | 引数 | 型 | 意味 | 値範囲/制約 | 必須 |
 |---|---|---|---|---|
-| node_name | str | タスク名 | 既存タスク名 | 必須 |
+| node_name | str | ノード名 | graph 上で一意 | 必須 |
 
 | 戻り値 | 型 | 主要フィールド |
 |---|---|---|
@@ -311,7 +311,7 @@
 
 | 戻り値 | 型 | 主要フィールド |
 |---|---|---|
-| terms | list<DSLTerm> | TaskTerm/PipeRefTerm/SwitchTerm/RepeatTerm/ForEachTerm/UntilTerm |
+| terms | list<DSLTerm> | TaskTerm/PipeRefTerm/SwitchTerm/RepeatTerm/ForEachTerm/UntilTerm（TaskTerm は `task_ref` と任意の `node_name` を保持） |
 
 | 例外 | 発生場所 | 発生原因 |
 |---|---|---|
@@ -429,7 +429,7 @@
 | 型 | 主要フィールド（値範囲/制約） | 用途 |
 |---|---|---|
 | Flow | name: str, tasks: set<Task>, _definition: list<DSLNode> | DAG定義 |
-| Task | name: str(一意), func: Callable, dependencies: set<Task>, inputs: dict<str, Any>, outputs: list<str>, retries: int>=0, timeout_sec: float|None, trigger_policy: "ALL/ANY" | タスク定義 |
+| Task | name: str(実行ノード名), func: Callable, dependencies: set<Task>, inputs: dict<str, Any>, outputs: list<str>, retries: int>=0, timeout_sec: float|None, trigger_policy: "ALL/ANY" | タスク定義 |
 | RunContext | run_id: str(UUID), status: RunStatus, tasks: dict<str, TaskState>, task_records: dict<str, TaskRecord>, logs: list<dict<str, Any>>（メモリのみ） | 実行状態 |
 | TaskRecord | state: TaskState, duration_ms: float|None, error: str|None, output: Any | タスク実行記録 |
 | Context | params/results/scratch/artifacts: dict<str, Any>, env: dict<str, str>, artifact_dir: str, run_context: RunContext|None（artifactsは慣習的ラベル） | 実行コンテキスト |
@@ -439,7 +439,7 @@
 | SupportInfo | kind: str, format: str, content: str, filters: SupportFilters | 支援情報出力 |
 | PyocoConfig | version: int, flow: FlowConfig|None, tasks: dict<str, TaskConfig> | 設定全体 |
 | FlowConfig | graph: str, defaults: dict<str, Any> | フロー設定（単一） |
-| TaskConfig | callable: str|None, inputs: dict<str, Any>, outputs: list<str> | タスク設定 |
+| TaskConfig | use: str|None, callable: str|None, inputs: dict<str, Any>, outputs: list<str> | タスク設定 |
 | RuntimeConfig | expose_env: list<str> | env公開設定 |
 
 #4.主要フロー設計（成功/失敗）
@@ -455,7 +455,7 @@
 |---|---|---|---|
 | Flow/Task定義 | なし（メモリ） | 依存が循環しない | 不要 |
 | RunContext/TaskRecord | なし（メモリ） | run_id一意 | 不要 |
-| Context.results/scratch/artifacts | なし（メモリ） | タスク名で整合 | 不要 |
+| Context.results/scratch/artifacts | なし（メモリ） | ノード名で整合 | 不要 |
 | Artifactファイル | ファイルシステム（任意） | path一意 | 不要 |
 | TaskInfo/TaskIO | なし（メモリ） | name必須、inputs/outputs必須 | 不要 |
 | SupportInfo出力 | 文字列/ファイル（任意） | formatに準拠 | 不要 |

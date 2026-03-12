@@ -2,20 +2,27 @@
 
 **pyoco は、シンプルなタスクベースのワークフローを定義・実行するための、最小限で純粋な Python 製 DAG エンジンです。**
 
-## 概要
+## ✨ まず伝えたいこと
 
-Pyoco は、Airflow などの大規模なワークフローエンジンよりもはるかに小さく、軽量で、依存関係が少ないように設計されています。ローカル開発や単一マシンでの実行に最適化されています。
+- ⚡ **数分で試せます**: 小さなローカル workflow だけで最初の成功体験まで行けます。
+- 🧩 **そのまま育てられます**: 再利用したくなったら plug-in + `tasks.<local>.use` に移れます。
+- 🪶 **重い前提がありません**: スケジューラ群や外部DBを先に組まなくても始められます。
 
-デコレータとシンプルな API を使用して、タスクとその依存関係を完全に Python コードで定義できます。複雑な設定ファイルや外部データベースは必要ありません。
+Pyoco は、Airflow のような大規模ワークフロー基盤よりかなり小さく、ローカル開発・単一マシン実行・「まず動かしたい」ケースに寄せて設計されています。
 
-フルスタックのワークフローエンジンでは大げさすぎるような、小さなジョブ、開発環境、個人プロジェクトに最適です。
+## 🚦 入口は2つあります
+
+- **最短で試す入口**: 1ファイルだけで書いて、まず Pyoco の実行感を掴む。
+- **おすすめの入口**: 再利用するタスクを plug-in として公開し、`flow.yaml` で `tasks.<local_name>.use` に束ねる。
+
+はじめて触るなら、まず最短ルートで1回動かすのが楽です。継続利用するなら、その直後に plug-in ルートへ進むのが自然です。
 
 ## ✨ 特徴
 
 - **Pure Python**: 外部サービスや重い依存関係は不要です。
 - **Minimal DAG model**: タスクと依存関係をコードで直接定義します。
 - **Task-oriented**: 読みやすく保守しやすい「小さなワークフロー」に焦点を当てています。
-- **Graph DSL controls**: `flow.yaml` で `>>` / `pipe` / `switch` / `repeat` / `foreach` / `until` を使って制御フローを記述できます。
+- **Graph DSL controls**: `flow.yaml` で `>>` / `node_name: task_ref` / `pipe` / `switch` / `repeat` / `foreach` / `until` を使って制御フローを記述できます。
 - **Friendly trace logs**: ターミナルからキュートな（またはプレーンな）ログで実行をステップごとに追跡できます。
 - **Parallel Execution**: 独立したタスクを自動的に並列実行します。
 - **Artifact Management**: タスクの出力やファイルを簡単に保存・管理できます。
@@ -28,9 +35,9 @@ Pyoco は、Airflow などの大規模なワークフローエンジンよりも
 pip install pyoco
 ```
 
-## 🚀 使い方
+## 🚀 まずは 60 秒で動かす
 
-純粋な Python コードだけでワークフローを定義する最小限の例です。
+これは **最短の Hello** です。1ファイルに閉じるので、まず「動く感じ」をすぐ試せます。
 
 ```python
 from pyoco import task
@@ -88,29 +95,38 @@ python examples/hello_pyoco.py
 
 完全なコードは [examples/hello_pyoco.py](examples/hello_pyoco.py) を参照してください。
 
+## 🧭 継続利用するならこの形
+
+再利用したいタスク、共有したいタスク、説明可能な task カタログを作りたいときは、次の形を基本にしてください。
+
+1. Task サブクラスを plug-in パッケージで公開する
+2. `vision/image_classify` のような安定した公開名を付ける
+3. `flow.yaml` では `tasks.<local_name>.use` でローカル名へ束ねる
+
+これが、現在の Pyoco が **正規ルート** として見せたい使い方です。
+
 ## 🧾 flow.yaml の Graph DSL
 
-Pyoco は `flow.yaml` でもワークフローを定義できます。現行DSLは `>>` を基本に、`pipe/switch/repeat/foreach/until` を組み合わせます。
+1ファイル実験を超えていくなら、このモデルを覚えるのが近道です。`flow.yaml` で graph を読みやすく保ち、plug-in 公開名でタスク再利用をきれいに管理できます。
+
+本番寄りのタスク共有では、**Task サブクラスを entry point plug-in として登録し、`flow.yaml` では `tasks.<local_name>.use` で束ねる方法を基本**にしてください。`tasks.<name>.callable` は、ローカルな明示上書きや移行用途向けです。
 
 ```yaml
 version: 1
 
-pipes:
-  setup: "prepare >> choose_mode"
-
 tasks:
   prepare:
-    callable: "tasks:prepare"
+    use: "demo/prepare"
   choose_mode:
-    callable: "tasks:choose_mode"
+    use: "demo/choose_mode"
   run_batch:
-    callable: "tasks:run_batch"
+    use: "demo/run_batch"
   process_item:
-    callable: "tasks:process_item"
+    use: "demo/process_item"
   poll_status:
-    callable: "tasks:poll_status"
+    use: "demo/poll_status"
   finish:
-    callable: "tasks:finish"
+    use: "demo/finish"
 
 flow:
   defaults:
@@ -118,9 +134,10 @@ flow:
     items: ["A", "B", "C"]
     done: false
   graph: |
-    pipe(setup)
+    prepare
+    >> choose_mode
     >> switch(on={{mode}}){
-      batch: repeat(count=2){ run_batch };
+      batch: first_batch: run_batch >> second_batch: run_batch;
       default: run_batch;
     }
     >> foreach(over={{items}}, item=it, index=idx){ process_item }
@@ -129,9 +146,13 @@ flow:
 ```
 
 - `>>`: 逐次依存
+- `node_name: task_ref`: 1つの task 定義を別の実行ノード名で再利用
+- `tasks.<local_name>.use`: `demo/run_batch` のような公開 task 名をローカル graph 名へ束ねる
 - `pipe(NAME)`: `pipes` で定義したパイプを参照展開
 - `switch(on=...){ ... }`: 条件に一致した分岐を1つ実行
 - `repeat` / `foreach` / `until`: 反復制御
+
+仕様書に入る前に段階的に試したい場合は、[チュートリアル](docs/tutorial/index_ja.md) から入るのが簡単です。
 
 ## 🏗️ アーキテクチャ
 
@@ -177,12 +198,16 @@ pyoco run --non-cute ...
 `pyoco` 本体はローカル/単一マシン実行を主対象にしています。  
 複数ワーカーでの分散実行、キューイング、リモート実行管理が必要な場合は **`pyoco-server`** を利用してください。
 
+- plug-in 形式にする実務上の利点は、task 群をその場のソース断片ではなく wheel として配布しやすいことです。
+- `pyoco-server` はその配布モデルと相性がよく、再利用 task を package 化しておくと worker 群へ広げやすくなります。
 - リポジトリ: <https://github.com/kitfactory/pyoco-server>
 - 導入手順・運用手順・互換情報の詳細は `pyoco-server` 側のドキュメントを参照してください。
 
 ## 🧩 プラグイン
 
-`pyoco.tasks` エントリポイントに Hook (`def register_tasks(registry): ...`) を公開すると、Pyoco が自動でタスクをロードします。**Task サブクラス優先** を推奨します（callable も動きますが警告対象）。`docs/plugins.md` に `PluginRegistry` の使い方、`pyproject.toml` 設定例、`pyoco plugins list` / `pyoco plugins lint` の説明を掲載しています。
+`pyoco.tasks` エントリポイントに Hook (`def register_tasks(registry): ...`) を公開すると、Pyoco が自動でタスクをロードします。これを **基本の登録経路** とし、**Task サブクラス優先** を推奨します（callable も動きますが警告対象）。公開名は `vision/image_classify` のような安定名にし、`flow.yaml` では `tasks.<local_name>.use` で束ねます。`docs/plugins.md` に `PluginRegistry` の使い方、`pyproject.toml` 設定例、`pyoco plugins list` / `pyoco plugins lint` の説明を掲載しています。
+
+この経路を推す理由のひとつは、task が package になった時点で `pyoco-server` の worker 群へ version 付き plug-in として配布しやすくなることです。
 
 **大きなデータについて:** そのままコピーせずハンドルを渡すのが安全です。巨大なテンソル/画像は `ctx.artifacts` や `ctx.scratch` にパスやハンドルを置き、必要なタスクだけが実体化する形にします。遅延パイプライン（例: DataPipe）は、実際に回すタスク（例: 学習タスク）でパイプ構成をログに出し、上流で全量展開しないようにします。
 
@@ -192,11 +217,12 @@ pyoco run --non-cute ...
 
 - **エントリポイント・プラグイン**: `importlib.metadata.entry_points(group="pyoco.tasks")` から自動ロード
 - **追加 import（運用側で制御）**: `PYOCO_DISCOVERY_MODULES`（カンマ/空白区切りのモジュール名）を設定。例: `PYOCO_DISCOVERY_MODULES=tasks,myapp.extra_tasks`
-- **明示タスク定義**: `flow.yaml` の `tasks.<name>.callable` を基本にする（詳細はチュートリアル参照）
+- **フロー内束ね直し**: 登録済み plug-in task は `tasks.<local_name>.use: "namespace/task_name"` を優先する
+- **明示タスク定義**: `flow.yaml` の `tasks.<name>.callable` はローカル上書きや簡易フロー向けに使う
 
 ## 📚 ドキュメント
 
-- [チュートリアル](docs/tutorial/index.md)
+- [チュートリアル](docs/tutorial/index_ja.md)
 - [ロードマップ（アーカイブ）](docs/archive/roadmap.md)
 
 ## 💖 コントリビューション

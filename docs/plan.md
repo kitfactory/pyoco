@@ -54,6 +54,21 @@
 - [x] DSL拡張のE2Eテストを追加する（tests/test_e2e_*.py）
 - [x] 対象テストと回帰テストを実行する（dsl/engine/cli/e2e）
 - [x] 文書整合性を最終確認する（docs/concept.md, docs/spec.md, docs/architecture.md, docs/plan.md）
+- [x] 名前付きノード付与の delta request を作成する（docs/delta/DR-20260312-node-naming）
+- [x] Graph DSL に `node_name: task_ref` を追加し、同一 task 定義の複数ノード化を実装する（src/pyoco/dsl/graph.py）
+- [x] 名前付きノードの Context / CLI / E2E テストを追加する（tests/dsl/test_graph.py, tests/core/test_context_resolve.py, tests/cli/test_cli.py, tests/test_e2e_graph_dsl.py）
+- [x] 名前付きノード仕様を正本へ同期する（docs/OVERVIEW.md, docs/concept.md, docs/spec.md, docs/architecture.md, README.md, README_ja.md）
+- [x] plugin-first ドキュメント方針の delta request を作成する（docs/delta/DR-20260312-plugin-first-docs）
+- [x] README / README_ja を plugin-first の導線へ更新する（README.md, README_ja.md）
+- [x] tutorial index / custom task tutorial を plugin-first の説明へ更新する（docs/tutorial/index.md, docs/tutorial/index_ja.md, docs/tutorial/07_custom_tasks.md, docs/tutorial/07_custom_tasks_ja.md）
+- [x] `use` 導入の delta request を作成する（docs/delta/DR-20260312-task-use-alias）
+- [x] `TaskConfig.use` と `TaskLoader` の task alias 解決を実装する（src/pyoco/schemas/config.py, src/pyoco/discovery/loader.py）
+- [x] `use` の config/discovery/support テストを追加する（tests/schemas/test_config.py, tests/discovery/test_loader.py, tests/support/test_support_info.py）
+- [x] `use` を正規ルートとして docs / guide / tutorial を同期する（README.md, README_ja.md, docs/plugins.md, docs/tutorial/*.md, docs/spec.md, docs/architecture.md, docs/concept.md, src/pyoco/support/renderer.py）
+- [x] バージョンを `0.7.2` へ更新し、package / lockfile / docs / delta を同期する（pyproject.toml, uv.lock, docs/plugins.md, docs/delta/DR-20260312-version-bump-072）
+- [x] README / tutorial の入口文書を fun / easy / plugin-first の導線へ更新する（README.md, README_ja.md, docs/tutorial/index*.md, docs/tutorial/01_hello*.md, docs/tutorial/07_custom_tasks*.md, docs/delta/DR-20260312-doc-onboarding-refresh）
+- [x] tutorial 02〜08 章の本文を fun / easy / current-model に沿って更新する（docs/tutorial/02*.md, docs/tutorial/03*.md, docs/tutorial/04*.md, docs/tutorial/05*.md, docs/tutorial/06*.md, docs/tutorial/08*.md, docs/delta/DR-20260312-tutorial-tone-refresh）
+- [x] plug-in 形式が `pyoco-server` 配布と相性が良いことを README / guide / tutorial に追記する（README.md, README_ja.md, docs/plugins.md, docs/tutorial/07_custom_tasks*.md, docs/delta/DR-20260312-pyoco-server-plugin-docs）
 
 # future
 - SupportInfoの出力形式拡張（例: yaml）
@@ -62,3 +77,10 @@
 
 # archive
 - [x] 初期のplanテンプレートを配置した
+- [x] DR-20260312-node-naming を archive した
+- [x] DR-20260312-plugin-first-docs を archive した
+- [x] DR-20260312-task-use-alias を archive した
+- [x] DR-20260312-version-bump-072 を archive した
+- [x] DR-20260312-doc-onboarding-refresh を archive した
+- [x] DR-20260312-tutorial-tone-refresh を archive した
+- [x] DR-20260312-pyoco-server-plugin-docs を archive した

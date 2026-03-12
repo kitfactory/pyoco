@@ -1,13 +1,13 @@
 # 4. 制御コンポーネント (pipe / switch / repeat / foreach / until)
 
-この章では、現在の graph DSL で使える制御コンポーネントを学びます。
+この章では、graph DSL が「便利だ」と感じ始めるところまで進みます。基本の `>>` はそのままに、分岐・再利用・反復を足していきます。
 
-## 目標
+## 🎯 目標
 - `pipe(NAME)` でパイプ断片を再利用する。
 - `switch(on=...){ ... }` で1つの分岐を選択する。
 - `repeat` / `foreach` / `until` で反復処理を定義する。
 
-## 1. タスクの定義 (`tasks.py`)
+## ✍️ 1. タスクの定義 (`tasks.py`)
 
 ```python
 from pyoco.dsl.syntax import task
@@ -56,7 +56,7 @@ def finish(ctx):
     }
 ```
 
-## 2. フロー設定 (`flow.yaml`)
+## 🗺️ 2. フロー設定 (`flow.yaml`)
 
 ```yaml
 version: 1
@@ -101,12 +101,15 @@ flow:
 - `repeat(count=2){ ... }`: 本文を固定回数だけ実行します。
 - `foreach(over={{items}}, item=it, index=idx){ ... }`: リスト要素をエイリアス付きで反復します。
 - `until(cond={{params.done}}, max_iter=5){ ... }`: 条件が真になるまで反復します。
+- チュートリアルでは local `callable` で短く保っています。実際の project では、同じ graph を plug-in task 名とローカル alias で管理すると読みやすくなります。
 
-## 3. チェックと実行
+## ▶️ 3. チェックと実行
 
 ```bash
 pyoco check --config flow.yaml --dry-run
 pyoco run --config flow.yaml
 ```
+
+ここまで来ると、flow は小さいままでも制御ロジックは十分に実用的です。次は結果やファイルをどう残すかに進みます。
 
 [次へ: アーティファクトと保存](05_artifacts_ja.md)
